@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/tournament/data/tournament_repository.dart';
 
-class TournamentRulesScreen extends StatefulWidget {
+class TournamentRulesScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? data;
 
   const TournamentRulesScreen({super.key, this.data});
 
   @override
-  State<TournamentRulesScreen> createState() => _TournamentRulesScreenState();
+  ConsumerState<TournamentRulesScreen> createState() => _TournamentRulesScreenState();
 }
 
-class _TournamentRulesScreenState extends State<TournamentRulesScreen> {
+class _TournamentRulesScreenState extends ConsumerState<TournamentRulesScreen> {
   bool _agreedToRules = false;
   bool _agreedToSafetyAndConduct = false;
   bool _isRegistering = false;
@@ -42,8 +44,8 @@ class _TournamentRulesScreenState extends State<TournamentRulesScreen> {
     final captain = widget.data?['captainName'] as String? ?? 'Captain';
     final players = widget.data?['players'] as List? ?? [];
 
-    // Register team in TournamentRepository
-    TournamentRepository.instance.registerTeamForTournament(tournId, {
+    // Register team in TournamentRepository and backend
+    await TournamentRepository.instance.registerTeamForTournament(tournId, {
       'teamName': teamName,
       'captainName': captain,
       'contactPhone': widget.data?['contactPhone'] ?? '+91 98765 43210',
@@ -55,7 +57,7 @@ class _TournamentRulesScreenState extends State<TournamentRulesScreen> {
       'players': players,
       'isUserTeam': true,
       'rating': 4.8,
-    });
+    }, dio: ref.read(dioClientProvider));
 
     await Future.delayed(const Duration(milliseconds: 600));
 

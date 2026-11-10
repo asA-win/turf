@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/tournament/data/tournament_repository.dart';
 
-class CreateTournamentScreen extends StatefulWidget {
+class CreateTournamentScreen extends ConsumerStatefulWidget {
   const CreateTournamentScreen({super.key});
 
   @override
-  State<CreateTournamentScreen> createState() => _CreateTournamentScreenState();
+  ConsumerState<CreateTournamentScreen> createState() => _CreateTournamentScreenState();
 }
 
-class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
+class _CreateTournamentScreenState extends ConsumerState<CreateTournamentScreen> {
   final _formKey = GlobalKey<FormState>();
 
   // Form Fields
@@ -176,7 +178,7 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
     }
   }
 
-  void _submitTournament() {
+  void _submitTournament() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -229,6 +231,24 @@ class _CreateTournamentScreenState extends State<CreateTournamentScreen> {
       'createdBy': 'You',
       'isCreator': true,
     };
+
+    // Post to live backend database
+    try {
+      final dio = ref.read(dioClientProvider);
+      final res = await dio.post('/tournaments/', data: {
+        'title': _nameController.text.trim(),
+        'prize_pool': double.tryParse(_prizePoolController.text.trim()) ?? 100000.0,
+        'total_teams': _totalSpots,
+        'format': _selectedFormat,
+        'status': 'upcoming',
+      });
+      if (res.data != null && res.data['id'] != null) {
+        newTournament['backendId'] = res.data['id'];
+        newTournament['id'] = 'tourn_${res.data['id']}';
+      }
+    } catch (e) {
+      debugPrint('Error creating tournament on backend: $e');
+    }
 
     // Add to shared repository
     TournamentRepository.instance.addTournament(newTournament);

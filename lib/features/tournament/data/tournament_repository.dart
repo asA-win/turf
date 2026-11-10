@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 
 class TournamentRepository extends ChangeNotifier {
   static final TournamentRepository instance = TournamentRepository._internal();
@@ -10,6 +11,63 @@ class TournamentRepository extends ChangeNotifier {
   factory TournamentRepository() => instance;
 
   List<Map<String, dynamic>> _tournaments = [];
+  bool _isSyncing = false;
+  bool get isSyncing => _isSyncing;
+
+  Future<void> syncWithBackend(Dio dio) async {
+    try {
+      _isSyncing = true;
+      final res = await dio.get('/tournaments/');
+      final data = res.data;
+      if (data is List && data.isNotEmpty) {
+        for (final item in data) {
+          final backendId = item['id'];
+          final idStr = 'tourn_$backendId';
+          final existingIdx = _tournaments.indexWhere((t) => t['id'] == idStr || t['backendId'] == backendId);
+          final title = item['title'] ?? 'Tournament Championship';
+          final prize = item['prize_pool'] != null ? '₹${(item['prize_pool'] as num).toInt()}' : '₹50,000';
+          final totalTeams = (item['total_teams'] as num?)?.toInt() ?? 16;
+          final format = item['format'] ?? 'Knockout';
+          final status = (item['status'] == 'upcoming') ? 'Open for Registration' : (item['status'] ?? 'Open for Registration');
+
+          if (existingIdx != -1) {
+            _tournaments[existingIdx]['name'] = title;
+            _tournaments[existingIdx]['prizePool'] = prize;
+            _tournaments[existingIdx]['totalSpots'] = totalTeams;
+            _tournaments[existingIdx]['format'] = format;
+            _tournaments[existingIdx]['status'] = status;
+          } else {
+            _tournaments.insert(0, {
+              'id': idStr,
+              'backendId': backendId,
+              'name': title,
+              'sport': 'Football',
+              'status': status,
+              'prizePool': prize,
+              'entryFee': '₹1,500',
+              'entryFeeAmount': 1500,
+              'totalSpots': totalTeams,
+              'spotsFilled': 8,
+              'format': format,
+              'venue': 'Play Arena',
+              'area': 'Koramangala',
+              'city': 'Bangalore',
+              'date': 'Coming Soon',
+              'registeredTeams': _generateDefaultTeamsForSport('Football', 8),
+              'fixtures': <Map<String, dynamic>>[],
+              'fixturesGenerated': false,
+            });
+          }
+        }
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error syncing tournaments with backend: $e');
+    } finally {
+      _isSyncing = false;
+      notifyListeners();
+    }
+  }
 
   List<Map<String, dynamic>> get tournaments {
     if (_tournaments.isEmpty) {
@@ -62,7 +120,7 @@ class TournamentRepository extends ChangeNotifier {
     }
   }
 
-  void registerTeamForTournament(String tournamentId, Map<String, dynamic> registration) {
+  Future<void> registerTeamForTournament(String tournamentId, Map<String, dynamic> registration, {Dio? dio}) async {
     final idx = _tournaments.indexWhere((t) => t['id'] == tournamentId);
     if (idx != -1) {
       final t = Map<String, dynamic>.from(_tournaments[idx]);
@@ -85,6 +143,18 @@ class TournamentRepository extends ChangeNotifier {
 
       _tournaments[idx] = t;
       notifyListeners();
+
+      if (dio != null) {
+        try {
+          final backendId = t['backendId'] ?? int.tryParse(tournamentId.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
+          await dio.post('/tournaments/register', data: {
+            'tournament_id': backendId,
+            'team_name': registration['teamName'] ?? 'My Squad FC',
+          });
+        } catch (e) {
+          debugPrint('Backend tournament registration error: $e');
+        }
+      }
     }
   }
 

@@ -325,3 +325,37 @@ async def get_user_referral(
         total_rewards=total_rewards
     )
 
+@router.post("/become-owner", response_model=UserSchema)
+async def become_venue_owner(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upgrade authenticated user to venue owner."""
+    firebase_uid = current_user.get("uid")
+    user = await get_db_user(db, firebase_uid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.role = "owner"
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+@router.post("/become-admin", response_model=UserSchema)
+async def become_admin(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Grant admin role to authenticated user for administrative access."""
+    firebase_uid = current_user.get("uid")
+    user = await get_db_user(db, firebase_uid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.role = "admin"
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+

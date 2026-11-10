@@ -208,3 +208,21 @@ class ReferralResponse(BaseModel):
     total_referred: int = 0
     total_rewards: float = 0.0
 
+# --- Tournament Schemas ---
+class TournamentBase(BaseModel):
+    title: str
+    prize_pool: float = 1000000.0
+    total_teams: int = 16
+    format: str = "Knockout"
+    status: str = "upcoming"
+
+class TournamentCreate(TournamentBase):
+    pass
+
+class Tournament(TournamentBase):
+    id: int
+    start_date: datetime
+    class Config:
+        from_attributes = True
+
+

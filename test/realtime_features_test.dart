@@ -99,13 +99,17 @@ void main() {
 
   testWidgets('ActiveMatchesScreen renders with real-time sports filter and matches', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(
+      ProviderScope(
+        overrides: [
+          dioClientProvider.overrideWith((ref) => createMockDio()),
+        ],
+        child: const MaterialApp(
           home: ActiveMatchesScreen(),
         ),
       ),
     );
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Active Matches'), findsOneWidget);
     expect(find.text('Football'), findsWidgets);

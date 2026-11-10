@@ -143,9 +143,39 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       final state = ref.read(authControllerProvider);
       state.whenOrNull(
         error: (error, stackTrace) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error.toString())),
-          );
+          final errStr = error.toString();
+          if (errStr.contains('cancelled') || errStr.contains('canceled')) return;
+          if (errStr.contains('10') || errStr.contains('sign_in_failed') || errStr.contains('ApiException')) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: AppTheme.cardDark,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, color: Colors.amber),
+                    const SizedBox(width: 8),
+                    Text('Google Sign-In Note', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  ],
+                ),
+                content: Text(
+                  'To authenticate with Google OAuth, your Firebase Project requires the Android SHA-1 certificate fingerprint to be added in Firebase Console:\n\nSHA-1:\n32:DF:CB:EC:42:AF:75:28:7D:E2:96:71:44:76:2E:C5:48:FF:85:19\n\nYou can also sign up immediately with Email & Password or Phone OTP!',
+                  style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12.5),
+                ),
+                actions: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen, foregroundColor: Colors.black),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('OK, Got it'),
+                  ),
+                ],
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(errStr)),
+            );
+          }
         },
         data: (_) async {
           // Immediately sync with backend database in real time
@@ -175,9 +205,39 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       final state = ref.read(authControllerProvider);
       state.whenOrNull(
         error: (error, stackTrace) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error.toString())),
-          );
+          final errStr = error.toString();
+          if (errStr.contains('cancelled') || errStr.contains('canceled')) return;
+          if (errStr.contains('10') || errStr.contains('sign_in_failed') || errStr.contains('ApiException')) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: AppTheme.cardDark,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, color: Colors.amber),
+                    const SizedBox(width: 8),
+                    Text('Google Sign-In Note', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  ],
+                ),
+                content: Text(
+                  'To authenticate with Google OAuth, your Firebase Project requires the Android SHA-1 certificate fingerprint to be added in Firebase Console:\n\nSHA-1:\n32:DF:CB:EC:42:AF:75:28:7D:E2:96:71:44:76:2E:C5:48:FF:85:19\n\nYou can also sign up immediately with Email & Password or Phone OTP!',
+                  style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12.5),
+                ),
+                actions: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen, foregroundColor: Colors.black),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('OK, Got it'),
+                  ),
+                ],
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(errStr)),
+            );
+          }
         },
         data: (_) async {
           // Immediately sync with backend database in real time

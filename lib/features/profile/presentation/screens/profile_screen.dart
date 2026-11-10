@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/widgets/bys_bottom_nav_bar.dart';
 import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
+import 'package:turf_app/features/booking/data/repositories/booking_repository.dart';
 import 'package:turf_app/features/wallet/presentation/controllers/wallet_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -15,6 +17,128 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  Future<void> _handleVenueOwnerAccess(BuildContext context, String currentRole) async {
+    final isAlreadyOwner = currentRole.toLowerCase() == 'owner' || currentRole.toLowerCase() == 'admin';
+    if (isAlreadyOwner) {
+      context.push('/venue-owner-dashboard');
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.cardDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.storefront_rounded, color: AppTheme.primaryGreen),
+            const SizedBox(width: 8),
+            Text('Become Venue Owner', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          'Registering as a Venue Owner allows you to list turfs, configure pricing & slots, and monitor live bookings in real time.',
+          style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Upgrade Account'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        final dio = ref.read(dioClientProvider);
+        await dio.post('/users/become-owner');
+        ref.invalidate(fetchUserProfileProvider);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account upgraded to Venue Owner successfully!'),
+              backgroundColor: AppTheme.primaryGreen,
+            ),
+          );
+          context.push('/venue-owner-dashboard');
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error upgrading role: $e'), backgroundColor: AppTheme.errorRed),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _handleAdminAccess(BuildContext context, String currentRole) async {
+    final isAdmin = currentRole.toLowerCase() == 'admin';
+    if (isAdmin) {
+      context.push('/admin-dashboard');
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.cardDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.admin_panel_settings_rounded, color: Colors.amber),
+            const SizedBox(width: 8),
+            Text('Admin Control Panel', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          'Access the Admin Control Panel to manage system users, view global analytics, and inspect platform operations.',
+          style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Access Admin'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        final dio = ref.read(dioClientProvider);
+        await dio.post('/users/become-admin');
+        ref.invalidate(fetchUserProfileProvider);
+        if (mounted) {
+          context.push('/admin-dashboard');
+        }
+      } catch (e) {
+        if (mounted) {
+          context.push('/admin-dashboard');
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final userAsync = ref.watch(fetchUserProfileProvider);
@@ -26,6 +150,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ? (user.role == 'player' ? 'Player' : user.role!.toUpperCase())
         : 'Player';
     final wallet = ref.watch(walletProvider);
+    final bookingsAsync = ref.watch(fetchMyBookingsProvider);
+    final bookingsCount = bookingsAsync.valueOrNull?.length ?? 0;
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
@@ -401,7 +527,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.4)),
                   ),
                   child: Text(
-                    '48 Matches',
+                    bookingsCount > 0 ? '$bookingsCount Matches' : 'New Player',
                     style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
                   ),
                 ),
@@ -419,13 +545,181 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.4)),
                   ),
                   child: Text(
-                    '₹2,450.00',
+                    '₹${wallet.balance.toStringAsFixed(2)}',
                     style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
                   ),
                 ),
               ),
               _linkTile(Icons.card_giftcard_outlined, 'Referral & Earn', '/referral'),
               _linkTile(Icons.history, 'Booking History', '/my-bookings'),
+
+              const SizedBox(height: 16),
+
+              // --- VENUE OWNER & TURF PARTNER HUB ---
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF132B1A),
+                      AppTheme.cardDark,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryGreen.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.storefront_rounded, color: AppTheme.primaryGreen, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Venue Owner & Partner Hub',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                (user?.role == 'owner' || user?.role == 'admin')
+                                    ? 'Active Venue Partner'
+                                    : 'List your turf & start earning',
+                                style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textGrey),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: (user?.role == 'owner' || user?.role == 'admin')
+                                ? AppTheme.primaryGreen.withValues(alpha: 0.2)
+                                : Colors.amber.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: (user?.role == 'owner' || user?.role == 'admin')
+                                  ? AppTheme.primaryGreen
+                                  : Colors.amber,
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            (user?.role == 'owner' || user?.role == 'admin') ? 'OWNER' : 'FREE UPGRADE',
+                            style: GoogleFonts.poppins(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.bold,
+                              color: (user?.role == 'owner' || user?.role == 'admin')
+                                  ? AppTheme.primaryGreen
+                                  : Colors.amber,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryGreen,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            icon: const Icon(Icons.dashboard_rounded, size: 16),
+                            label: Text(
+                              'Owner Dashboard',
+                              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                            onPressed: () => _handleVenueOwnerAccess(context, user?.role ?? 'player'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppTheme.primaryGreen,
+                              side: const BorderSide(color: AppTheme.primaryGreen),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            icon: const Icon(Icons.add_business_rounded, size: 16),
+                            label: Text(
+                              '+ Add Turf',
+                              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                            onPressed: () => context.push('/add-turf'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => context.push('/live-booking-requests'),
+                          icon: const Icon(Icons.notifications_active_outlined, size: 14, color: AppTheme.textGrey),
+                          label: Text(
+                            'Booking Requests',
+                            style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textGrey),
+                          ),
+                        ),
+                        Container(width: 1, height: 14, color: AppTheme.cardBorder),
+                        TextButton.icon(
+                          onPressed: () => context.push('/venue-earnings'),
+                          icon: const Icon(Icons.trending_up_rounded, size: 14, color: AppTheme.textGrey),
+                          label: Text(
+                            'Earnings & Reports',
+                            style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textGrey),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // --- ADMIN CONTROL PANEL ---
+              _linkTile(
+                Icons.admin_panel_settings_outlined,
+                'Admin Control Panel',
+                '/admin-dashboard',
+                iconColor: Colors.amber,
+                subtitle: 'Platform analytics, user roles & management',
+                badge: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                  ),
+                  child: Text(
+                    'PORTAL',
+                    style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber),
+                  ),
+                ),
+                onTapOverride: () => _handleAdminAccess(context, user?.role ?? 'player'),
+              ),
+
               const SizedBox(height: 10),
               Container(
                 margin: const EdgeInsets.only(bottom: 10),
@@ -459,6 +753,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     Color? iconColor,
     String? subtitle,
     Widget? badge,
+    VoidCallback? onTapOverride,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -468,7 +763,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         border: Border.all(color: AppTheme.cardBorder),
       ),
       child: ListTile(
-        onTap: () => context.push(route),
+        onTap: onTapOverride ?? () => context.push(route),
         leading: Icon(icon, color: iconColor ?? AppTheme.primaryGreen),
         title: Text(
           title,

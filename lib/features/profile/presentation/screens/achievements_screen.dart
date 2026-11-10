@@ -1,25 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
+import 'package:turf_app/features/booking/data/repositories/booking_repository.dart';
+import 'package:turf_app/features/wallet/presentation/controllers/wallet_provider.dart';
 
-class AchievementsScreen extends StatefulWidget {
+class AchievementsScreen extends ConsumerStatefulWidget {
   const AchievementsScreen({super.key});
 
   @override
-  State<AchievementsScreen> createState() => _AchievementsScreenState();
+  ConsumerState<AchievementsScreen> createState() => _AchievementsScreenState();
 }
 
-class _AchievementsScreenState extends State<AchievementsScreen> with SingleTickerProviderStateMixin {
+class _AchievementsScreenState extends ConsumerState<AchievementsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
-  final achievements = [
-    {'title': 'Hat-trick Hero', 'desc': 'Scored 3 goals in a match', 'date': '12 May 2025', 'icon': Icons.sports_soccer},
-    {'title': 'Top Scorer', 'desc': 'Scored 10 goals in a season', 'date': '28 Apr 2025', 'icon': Icons.emoji_events},
-    {'title': 'Winning Streak', 'desc': 'Won 5 matches in a row', 'date': '15 Apr 2025', 'icon': Icons.local_fire_department},
-    {'title': 'Playmaker', 'desc': 'Provided 5 assists in a match', 'date': '02 Apr 2025', 'icon': Icons.stars},
-    {'title': 'Iron Man', 'desc': 'Played 10 matches in a month', 'date': '20 Mar 2025', 'icon': Icons.shield},
-  ];
 
   @override
   void initState() {
@@ -28,11 +25,97 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
   }
 
   @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final userAsync = ref.watch(fetchUserProfileProvider);
+    final bookingsAsync = ref.watch(fetchMyBookingsProvider);
+    final wallet = ref.watch(walletProvider);
+
+    final bookings = bookingsAsync.valueOrNull ?? [];
+    final bookingsCount = bookings.length;
+    final nowFormatted = DateFormat('dd MMM yyyy').format(DateTime.now());
+
+    final List<Map<String, dynamic>> dynamicAchievements = [
+      {
+        'title': 'Certified Athlete',
+        'desc': 'Registered verified account on Turf App',
+        'date': nowFormatted,
+        'icon': Icons.verified_user_rounded,
+        'unlocked': true,
+        'category': 'Milestones',
+        'progress': 'Completed',
+      },
+      {
+        'title': 'First Kick-off',
+        'desc': 'Booked your first verified turf slot',
+        'date': bookings.isNotEmpty
+            ? DateFormat('dd MMM yyyy').format(bookings.first.bookingDate)
+            : '0 / 1 Bookings',
+        'icon': Icons.sports_soccer_rounded,
+        'unlocked': bookingsCount >= 1,
+        'category': 'Trophies',
+        'progress': bookingsCount >= 1 ? 'Unlocked' : '0/1',
+      },
+      {
+        'title': 'Turf Regular',
+        'desc': 'Completed 3 certified matches on turf venues',
+        'date': bookingsCount >= 3 ? nowFormatted : '$bookingsCount / 3 Matches',
+        'icon': Icons.local_fire_department_rounded,
+        'unlocked': bookingsCount >= 3,
+        'category': 'Trophies',
+        'progress': bookingsCount >= 3 ? 'Unlocked' : '$bookingsCount/3',
+      },
+      {
+        'title': 'Arena Veteran',
+        'desc': 'Completed 10 matches on turf venues',
+        'date': bookingsCount >= 10 ? nowFormatted : '$bookingsCount / 10 Matches',
+        'icon': Icons.military_tech_rounded,
+        'unlocked': bookingsCount >= 10,
+        'category': 'Trophies',
+        'progress': bookingsCount >= 10 ? 'Unlocked' : '$bookingsCount/10',
+      },
+      {
+        'title': 'Smart Wallet Player',
+        'desc': 'Added balance or earned cash rewards in Turf Wallet',
+        'date': wallet.balance > 0 ? 'Active (₹${wallet.balance.toStringAsFixed(2)})' : 'Add funds to unlock',
+        'icon': Icons.account_balance_wallet_rounded,
+        'unlocked': wallet.balance > 0,
+        'category': 'Milestones',
+        'progress': wallet.balance > 0 ? 'Unlocked' : '0/1',
+      },
+      {
+        'title': 'Coin Collector',
+        'desc': 'Accumulate 50 Turf Reward Coins',
+        'date': wallet.coins >= 50 ? 'Claimed (${wallet.coins} Coins)' : '${wallet.coins} / 50 Coins',
+        'icon': Icons.monetization_on_rounded,
+        'unlocked': wallet.coins >= 50,
+        'category': 'Milestones',
+        'progress': wallet.coins >= 50 ? 'Unlocked' : '${wallet.coins}/50',
+      },
+      {
+        'title': 'Fair Play Legend',
+        'desc': 'Maintained 100% attendance on all confirmed bookings',
+        'date': bookingsCount > 0 ? 'Active Honor' : 'Book a match to earn',
+        'icon': Icons.shield_rounded,
+        'unlocked': bookingsCount > 0,
+        'category': 'Trophies',
+        'progress': bookingsCount > 0 ? 'Honor Active' : 'Locked',
+      },
+    ];
+
+    final unlockedCount = dynamicAchievements.where((a) => a['unlocked'] == true).length;
+    final trophiesCount = dynamicAchievements.where((a) => a['unlocked'] == true && a['category'] == 'Trophies').length;
+    final points = (unlockedCount * 100) + wallet.coins;
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
-        title: const Text('Achievements'),
+        title: Text('Achievements', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
@@ -57,52 +140,106 @@ class _AchievementsScreenState extends State<AchievementsScreen> with SingleTick
               padding: const EdgeInsets.symmetric(vertical: 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: const [
-                  _StatNum(val: '12', label: 'Achievements'),
-                  _StatNum(val: '5', label: 'Trophies'),
-                  _StatNum(val: '320', label: 'Points'),
+                children: [
+                  _StatNum(val: '$unlockedCount/${dynamicAchievements.length}', label: 'Achievements'),
+                  _StatNum(val: '$trophiesCount', label: 'Trophies'),
+                  _StatNum(val: '$points', label: 'XP Points'),
                 ],
               ),
             ),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(20),
-                itemCount: achievements.length,
-                itemBuilder: (context, index) {
-                  final a = achievements[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.cardDark,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.cardBorder),
-                    ),
-                    child: ListTile(
-                      leading: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppTheme.surfaceDark,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppTheme.primaryGreen),
-                        ),
-                        child: Icon(a['icon'] as IconData, color: AppTheme.primaryGreen, size: 22),
-                      ),
-                      title: Text(a['title'] as String, style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(a['desc'] as String, style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 11)),
-                          Text(a['date'] as String, style: GoogleFonts.poppins(color: AppTheme.textMuted, fontSize: 10)),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildList(dynamicAchievements),
+                  _buildList(dynamicAchievements.where((a) => a['category'] == 'Trophies').toList()),
+                  _buildList(dynamicAchievements.where((a) => a['category'] == 'Milestones').toList()),
+                ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildList(List<Map<String, dynamic>> items) {
+    if (items.isEmpty) {
+      return Center(
+        child: Text('No achievements found', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(20),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final a = items[index];
+        final isUnlocked = a['unlocked'] == true;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: AppTheme.cardDark,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isUnlocked ? AppTheme.primaryGreen.withValues(alpha: 0.4) : AppTheme.cardBorder,
+            ),
+          ),
+          child: ListTile(
+            leading: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: isUnlocked ? AppTheme.primaryGreen.withValues(alpha: 0.15) : AppTheme.surfaceDark,
+                shape: BoxShape.circle,
+                border: Border.all(color: isUnlocked ? AppTheme.primaryGreen : Colors.white24),
+              ),
+              child: Icon(
+                a['icon'] as IconData,
+                color: isUnlocked ? AppTheme.primaryGreen : Colors.white38,
+                size: 22,
+              ),
+            ),
+            title: Text(
+              a['title'] as String,
+              style: GoogleFonts.poppins(
+                color: isUnlocked ? Colors.white : Colors.white60,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 2),
+                Text(a['desc'] as String, style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 11)),
+                const SizedBox(height: 2),
+                Text(
+                  a['date'] as String,
+                  style: GoogleFonts.poppins(
+                    color: isUnlocked ? AppTheme.primaryGreen : AppTheme.textMuted,
+                    fontSize: 10,
+                    fontWeight: isUnlocked ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isUnlocked ? AppTheme.primaryGreen.withValues(alpha: 0.15) : Colors.white10,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                a['progress'] as String,
+                style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: isUnlocked ? AppTheme.primaryGreen : Colors.white38,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 from typing import List
 
 from app.db.session import get_db
-from app.db.models import Match
+from app.db.models import Match, Turf
 from app.schemas.schemas import Match as MatchSchema, MatchCreate
 from app.core.websocket_manager import ws_manager
 
@@ -16,8 +16,22 @@ async def read_matches(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Match).options(selectinload(Match.turf)))
     matches = result.scalars().all()
     if not matches:
+        turf_res = await db.execute(select(Turf))
+        first_turf = turf_res.scalars().first()
+        if not first_turf:
+            first_turf = Turf(
+                name="Play Arena",
+                location="Koramangala, Bengaluru",
+                price_per_hour=1200.0,
+                sport_types="Football,Cricket",
+                amenities="Floodlights,Locker Room,Parking",
+            )
+            db.add(first_turf)
+            await db.commit()
+            await db.refresh(first_turf)
+
         default_m = Match(
-            turf_id=1,
+            turf_id=first_turf.id,
             team_a_name="Turf Titans",
             team_b_name="Kickers United",
             team_a_score=2,

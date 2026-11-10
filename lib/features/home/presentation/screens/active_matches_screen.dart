@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 
@@ -18,10 +20,12 @@ class _ActiveMatchesScreenState extends ConsumerState<ActiveMatchesScreen> with 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
   StreamSubscription<Map<String, dynamic>>? _scoreboardSub;
+  final CancelToken _cancelToken = CancelToken();
+  bool _isLoading = false;
 
   final List<String> _sportsFilter = ['All', 'Football', 'Cricket', 'Badminton', 'Basketball'];
 
-  final List<Map<String, dynamic>> _matches = [
+  List<Map<String, dynamic>> _matches = [
     {
       'id': 101,
       'sport': 'Football',
@@ -31,92 +35,106 @@ class _ActiveMatchesScreenState extends ConsumerState<ActiveMatchesScreen> with 
       'teamB': 'Kickers United',
       'scoreA': '2',
       'scoreB': '1',
-      'minute': "68'",
-      'liveStatus': '2nd Half In Progress',
+      'minute': 'Live',
+      'liveStatus': 'Match In Progress',
       'venue': 'Play Arena (Pitch 1)',
       'location': 'Koramangala, Bengaluru',
       'playersCount': 10,
-      'latestEvent': "Goal scored by Rahul (Titans) • 54'",
+      'latestEvent': 'Live on-pitch action',
       'scoreboardConfig': {
         'sport': 'football',
         'turfName': 'Play Arena',
         'teamA': 'Turf Titans',
         'teamB': 'Kickers United',
       },
-    },
-    {
-      'id': 102,
-      'sport': 'Cricket',
-      'sportIcon': Icons.sports_cricket_rounded,
-      'accentColor': const Color(0xFFFF9800),
-      'teamA': 'Blaster XI',
-      'teamB': 'Royal Chalks',
-      'scoreA': '78/3',
-      'scoreB': '62/5',
-      'minute': '6.4 ov',
-      'liveStatus': 'Target: 79 (Req: 17 off 8b)',
-      'venue': 'Turf Nation (Box 2)',
-      'location': 'Electronic City, Bengaluru',
-      'playersCount': 12,
-      'latestEvent': 'Wicket! Caught at deep mid-wicket',
-      'scoreboardConfig': {
-        'sport': 'cricket',
-        'turfName': 'Turf Nation',
-        'teamA': 'Blaster XI',
-        'teamB': 'Royal Chalks',
-        'cricketOvers': 8,
-      },
-    },
-    {
-      'id': 103,
-      'sport': 'Badminton',
-      'sportIcon': Icons.sports_tennis_rounded,
-      'accentColor': const Color(0xFF10B981),
-      'teamA': 'Smash Kings',
-      'teamB': 'Drop Shots',
-      'scoreA': '14',
-      'scoreB': '11',
-      'minute': 'Set 3',
-      'liveStatus': 'Match Tied 1 - 1 (Decider Set)',
-      'venue': 'Victory Turf (Court A)',
-      'location': 'Bellandur, Bengaluru',
-      'playersCount': 4,
-      'latestEvent': 'Smash winner by Rohan (Drop Shots)',
-      'scoreboardConfig': {
-        'sport': 'badminton',
-        'turfName': 'Victory Turf',
-        'teamA': 'Smash Kings',
-        'teamB': 'Drop Shots',
-        'badmintonPoints': 21,
-      },
-    },
-    {
-      'id': 104,
-      'sport': 'Basketball',
-      'sportIcon': Icons.sports_basketball_rounded,
-      'accentColor': const Color(0xFFF59E0B),
-      'teamA': 'Hoop Stars',
-      'teamB': 'Slam Dunkers',
-      'scoreA': '42',
-      'scoreB': '38',
-      'minute': 'Q3 02:45',
-      'liveStatus': 'Quarter 3 in action',
-      'venue': 'Greenfield Arena (Court 2)',
-      'location': 'HSR Layout, Bengaluru',
-      'playersCount': 10,
-      'latestEvent': '3-Pointer scored by Sameer (Hoop Stars)',
-      'scoreboardConfig': {
-        'sport': 'basketball',
-        'turfName': 'Greenfield Arena',
-        'teamA': 'Hoop Stars',
-        'teamB': 'Slam Dunkers',
-      },
+      'isLiveSync': true,
     },
   ];
+
+  IconData _getSportIcon(String sport) {
+    switch (sport.toLowerCase()) {
+      case 'cricket':
+        return Icons.sports_cricket_rounded;
+      case 'badminton':
+        return Icons.sports_tennis_rounded;
+      case 'basketball':
+        return Icons.sports_basketball_rounded;
+      case 'tennis':
+        return Icons.sports_tennis_rounded;
+      default:
+        return Icons.sports_soccer_rounded;
+    }
+  }
+
+  Color _getSportColor(String sport) {
+    switch (sport.toLowerCase()) {
+      case 'cricket':
+        return const Color(0xFFFF9800);
+      case 'badminton':
+        return const Color(0xFF10B981);
+      case 'basketball':
+        return const Color(0xFFF59E0B);
+      default:
+        return const Color(0xFF00E5FF);
+    }
+  }
+
+  Future<void> _loadMatchesFromBackend() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final dio = ref.read(dioClientProvider);
+      final res = await dio.get('/matches/', cancelToken: _cancelToken);
+      final data = res.data;
+      if (data is List && data.isNotEmpty) {
+        final List<Map<String, dynamic>> loaded = [];
+        for (final item in data) {
+          final sport = (item['sport_type'] as String? ?? 'Football');
+          final turf = item['turf'] as Map<String, dynamic>?;
+          final turfName = turf?['name'] ?? 'Play Arena';
+          final location = turf?['location'] ?? 'Bengaluru';
+          loaded.add({
+            'id': item['id'],
+            'sport': sport,
+            'sportIcon': _getSportIcon(sport),
+            'accentColor': _getSportColor(sport),
+            'teamA': item['team_a_name'] ?? 'Team A',
+            'teamB': item['team_b_name'] ?? 'Team B',
+            'scoreA': (item['team_a_score'] ?? 0).toString(),
+            'scoreB': (item['team_b_score'] ?? 0).toString(),
+            'minute': item['status'] == 'live' ? "Live" : (item['status'] ?? "Live"),
+            'liveStatus': item['status'] == 'live' ? 'Match In Progress' : 'Certified Turf Match',
+            'venue': turfName,
+            'location': location,
+            'playersCount': 10,
+            'latestEvent': 'Live on-pitch action',
+            'scoreboardConfig': {
+              'sport': sport.toLowerCase(),
+              'turfName': turfName,
+              'teamA': item['team_a_name'] ?? 'Team A',
+              'teamB': item['team_b_name'] ?? 'Team B',
+            },
+            'isLiveSync': true,
+          });
+        }
+        if (mounted) {
+          setState(() {
+            _matches = loaded;
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+    } catch (e) {
+      debugPrint('Error loading active matches from backend: $e');
+    }
+    if (mounted) setState(() => _isLoading = false);
+  }
 
   @override
   void initState() {
     super.initState();
+    _loadMatchesFromBackend();
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -127,6 +145,10 @@ class _ActiveMatchesScreenState extends ConsumerState<ActiveMatchesScreen> with 
 
     _scoreboardSub = ref.read(realtimeServiceProvider).connectToChannel('scoreboard').listen((event) {
       final eventType = event['type'] as String?;
+      if (eventType == 'new_match') {
+        _loadMatchesFromBackend();
+        return;
+      }
       if (eventType == 'score_update') {
         final teamA = event['teamA'] as String?;
         final teamB = event['teamB'] as String?;
@@ -154,8 +176,8 @@ class _ActiveMatchesScreenState extends ConsumerState<ActiveMatchesScreen> with 
               _matches.insert(0, {
                 'id': DateTime.now().millisecondsSinceEpoch,
                 'sport': (sport != null && sport.isNotEmpty) ? sport[0].toUpperCase() + sport.substring(1) : 'Football',
-                'sportIcon': Icons.sports_soccer_rounded,
-                'accentColor': const Color(0xFF00E5FF),
+                'sportIcon': _getSportIcon(sport ?? 'Football'),
+                'accentColor': _getSportColor(sport ?? 'Football'),
                 'teamA': teamA,
                 'teamB': teamB,
                 'scoreA': scoreA ?? '0',
@@ -182,6 +204,7 @@ class _ActiveMatchesScreenState extends ConsumerState<ActiveMatchesScreen> with 
 
   @override
   void dispose() {
+    _cancelToken.cancel();
     _scoreboardSub?.cancel();
     _pulseController.dispose();
     super.dispose();
@@ -342,38 +365,52 @@ class _ActiveMatchesScreenState extends ConsumerState<ActiveMatchesScreen> with 
 
             // Matches List
             Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.sports_soccer_outlined, color: Colors.white24, size: 56),
-                          const SizedBox(height: 12),
-                          Text(
-                            'No active matches in $_selectedSport',
-                            style: GoogleFonts.poppins(
-                              color: Colors.white70,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Select another category to view live matches',
-                            style: GoogleFonts.poppins(color: Colors.white38, fontSize: 12),
-                          ),
-                        ],
-                      ),
+              child: _isLoading && _matches.isEmpty
+                  ? const Center(
+                      child: CircularProgressIndicator(color: AppTheme.primaryGreen),
                     )
-                  : ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 14),
-                      itemBuilder: (context, index) {
-                        final match = filtered[index];
-                        return _buildLiveMatchCard(context, match);
-                      },
+                  : RefreshIndicator(
+                      color: AppTheme.primaryGreen,
+                      backgroundColor: AppTheme.cardDark,
+                      onRefresh: _loadMatchesFromBackend,
+                      child: filtered.isEmpty
+                          ? ListView(
+                              children: [
+                                SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+                                Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.sports_soccer_outlined, color: Colors.white24, size: 56),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'No active matches in $_selectedSport',
+                                        style: GoogleFonts.poppins(
+                                          color: Colors.white70,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'Pull down to refresh or select another category',
+                                        style: GoogleFonts.poppins(color: Colors.white38, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            )
+                          : ListView.separated(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 14),
+                              itemBuilder: (context, index) {
+                                final match = filtered[index];
+                                return _buildLiveMatchCard(context, match);
+                              },
+                            ),
                     ),
             ),
           ],

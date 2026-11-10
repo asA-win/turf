@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/widgets/bys_bottom_nav_bar.dart';
 import 'package:turf_app/core/widgets/bys_profile_avatar.dart';
 import 'package:turf_app/features/tournament/data/tournament_repository.dart';
 
-class TournamentsListScreen extends StatefulWidget {
+class TournamentsListScreen extends ConsumerStatefulWidget {
   const TournamentsListScreen({super.key});
 
   @override
-  State<TournamentsListScreen> createState() => _TournamentsListScreenState();
+  ConsumerState<TournamentsListScreen> createState() => _TournamentsListScreenState();
 }
 
-class _TournamentsListScreenState extends State<TournamentsListScreen> {
+class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   // Location / Area State
@@ -70,6 +72,9 @@ class _TournamentsListScreenState extends State<TournamentsListScreen> {
   void initState() {
     super.initState();
     TournamentRepository.instance.addListener(_onRepositoryChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      TournamentRepository.instance.syncWithBackend(ref.read(dioClientProvider));
+    });
   }
 
   @override

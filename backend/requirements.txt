@@ -1,9 +1,11 @@
 fastapi
-uvicorn
+uvicorn[standard]
 sqlalchemy
 asyncpg
 psycopg2-binary
 aiosqlite
+greenlet
+websockets
 firebase-admin
 pydantic
 pydantic-settings
@@ -11,4 +13,3 @@ redis
 alembic
 cloudinary
 python-multipart
-

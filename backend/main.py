@@ -20,16 +20,22 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.on_event("startup")
 async def on_startup():
+    import asyncio
     db_host = engine.url.host or "local/sqlite"
     logger.info(f"Connecting to database host: {db_host} (driver: {engine.url.drivername})...")
     logger.info("Initializing database tables...")
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables initialized successfully.")
-    except Exception as e:
-        logger.error(f"Failed to connect to database at '{db_host}': {e}")
-        raise
+    for attempt in range(1, 10):
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("Database tables initialized successfully.")
+            break
+        except Exception as e:
+            logger.warning(f"Database connection attempt {attempt}/9 failed: {e}. Retrying in 2s...")
+            if attempt == 9:
+                logger.error(f"Failed to connect to database at '{db_host}' after 9 attempts.")
+                raise
+            await asyncio.sleep(2)
 
 # Add CORS middleware
 app.add_middleware(

@@ -15,6 +15,8 @@ class RealtimeService {
 
   static String getBaseWsUrl() => ApiConstants.baseWsUrl;
 
+  Stream<Map<String, dynamic>> subscribeToChannel(String path) => connectToChannel(path);
+
   Stream<Map<String, dynamic>> connectToChannel(String path) {
     _lastActivePath = path;
 

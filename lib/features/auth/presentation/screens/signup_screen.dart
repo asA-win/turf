@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:turf_app/features/auth/presentation/controllers/auth_providers.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
@@ -146,8 +147,23 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             SnackBar(content: Text(error.toString())),
           );
         },
-        data: (_) {
-          context.go('/home');
+        data: (_) async {
+          // Immediately sync with backend database in real time
+          try {
+            final dio = ref.read(dioClientProvider);
+            final user = ref.read(authStateChangesProvider).valueOrNull;
+            if (user != null) {
+              await dio.post('/users/', data: {
+                'firebase_uid': user.uid,
+                'email': _emailController.text.trim(),
+                'full_name': _usernameController.text.trim(),
+                'phone': _contactController.text.trim(),
+              });
+            }
+          } catch (_) {}
+          if (mounted) {
+            context.go('/home');
+          }
         },
       );
     }
@@ -163,8 +179,23 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             SnackBar(content: Text(error.toString())),
           );
         },
-        data: (_) {
-          context.go('/home');
+        data: (_) async {
+          // Immediately sync with backend database in real time
+          try {
+            final dio = ref.read(dioClientProvider);
+            final user = ref.read(authStateChangesProvider).valueOrNull;
+            if (user != null) {
+              await dio.post('/users/', data: {
+                'firebase_uid': user.uid,
+                'email': _emailController.text.trim(),
+                'full_name': _usernameController.text.trim(),
+                'phone': _contactController.text.trim(),
+              });
+            }
+          } catch (_) {}
+          if (mounted) {
+            context.go('/home');
+          }
         },
       );
     }

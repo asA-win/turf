@@ -137,22 +137,23 @@ class BookingsList extends ConsumerWidget {
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (err, _) {
-        final now = DateTime.now();
-        final filteredBookings = demoSampleBookings.where((b) {
-          if (isUpcoming) {
-            final today = DateTime(now.year, now.month, now.day);
-            return b.status != 'cancelled' && (b.bookingDate.isAfter(today) || b.bookingDate.isAtSameMomentAs(today));
-          } else {
-            return b.status == 'cancelled' || b.bookingDate.isBefore(DateTime(now.year, now.month, now.day));
-          }
-        }).toList();
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(24.0),
-          itemCount: filteredBookings.length,
-          itemBuilder: (context, index) {
-            return BookingCard(booking: filteredBookings[index]);
-          },
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.calendar_today_outlined, size: 48, color: Colors.grey.withValues(alpha: 0.5)),
+              const SizedBox(height: 12),
+              Text(
+                isUpcoming ? 'No upcoming bookings' : 'No past bookings',
+                style: GoogleFonts.poppins(color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => ref.invalidate(fetchMyBookingsProvider),
+                child: const Text('Refresh', style: TextStyle(color: AppTheme.primaryGreen)),
+              ),
+            ],
+          ),
         );
       },
     );

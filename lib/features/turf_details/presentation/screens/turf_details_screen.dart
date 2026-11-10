@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/turf_details/data/repositories/turf_repository.dart';
+import 'package:turf_app/features/turf_details/domain/models/turf.dart';
 
 class TurfDetailsScreen extends ConsumerStatefulWidget {
   final String turfId;
@@ -38,6 +40,10 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final turfIdInt = int.tryParse(widget.turfId) ?? 1;
+    final turfAsync = ref.watch(fetchTurfByIdProvider(turfIdInt));
+    final turf = turfAsync.valueOrNull;
+
     return Scaffold(
       backgroundColor: const Color(0xFF070B08),
       body: Stack(
@@ -50,7 +56,7 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 1. Hero Image Carousel with overlays
-                _buildHeroImage(context),
+                _buildHeroImage(context, turf),
 
                 // 2. Main Turf Title & Ratings Header
                 Padding(
@@ -58,7 +64,7 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildTitleSection(),
+                      _buildTitleSection(turf),
                       const SizedBox(height: 12),
 
                       // Quick Tag Pills
@@ -66,7 +72,7 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
                       const SizedBox(height: 14),
 
                       // Description with Read More
-                      _buildDescription(),
+                      _buildDescription(turf),
                       const SizedBox(height: 20),
 
                       // Amenities Grid (2 rows x 5 columns)
@@ -86,7 +92,7 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
                       const SizedBox(height: 20),
 
                       // Price & Apply Coupon Row
-                      _buildPriceAndCouponSection(context),
+                      _buildPriceAndCouponSection(context, turf),
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -100,7 +106,7 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
             bottom: 0,
             left: 0,
             right: 0,
-            child: _buildBottomActionBar(context),
+            child: _buildBottomActionBar(context, turf),
           ),
         ],
       ),
@@ -108,11 +114,11 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
   }
 
   // Hero Image Carousel matching screenshot 4
-  Widget _buildHeroImage(BuildContext context) {
+  Widget _buildHeroImage(BuildContext context, Turf? turf) {
     return Stack(
       children: [
         Image.network(
-          _carouselImages[0],
+          turf?.imageUrl ?? _carouselImages[0],
           height: 280,
           width: double.infinity,
           fit: BoxFit.cover,
@@ -253,7 +259,12 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
   }
 
   // Title, Verification, Rating and Location
-  Widget _buildTitleSection() {
+  Widget _buildTitleSection(Turf? turf) {
+    final name = turf?.name ?? 'Play Arena';
+    final location = turf?.location ?? 'Koramangala, Bengaluru';
+    final rating = turf != null && turf.averageRating > 0 ? turf.averageRating.toStringAsFixed(1) : '4.8';
+    final reviews = turf != null && turf.totalReviews > 0 ? '(${turf.totalReviews} Reviews)' : '(256 Reviews)';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -264,7 +275,7 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
             Row(
               children: [
                 Text(
-                  'Greenfield Arena',
+                  name,
                   style: GoogleFonts.poppins(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -291,7 +302,7 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
                       const Icon(Icons.star, color: AppTheme.primaryGreen, size: 13),
                       const SizedBox(width: 3),
                       Text(
-                        '4.8',
+                        rating,
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -303,7 +314,7 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '(256 Reviews)',
+                  reviews,
                   style: GoogleFonts.poppins(
                     fontSize: 9.5,
                     color: const Color(0xFF7E8F83),
@@ -319,7 +330,7 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
             const Icon(Icons.location_on_outlined, color: AppTheme.primaryGreen, size: 14),
             const SizedBox(width: 4),
             Text(
-              'Koramangala, Bengaluru',
+              location,
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 color: const Color(0xFF8E9E94),
@@ -380,12 +391,12 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
   }
 
   // Description
-  Widget _buildDescription() {
+  Widget _buildDescription(Turf? turf) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Premium turf with FIFA quality ground, excellent maintenance and top-notch amenities.',
+          turf?.description ?? 'Premium turf with FIFA quality ground, excellent maintenance and top-notch amenities.',
           style: GoogleFonts.poppins(
             fontSize: 12,
             color: const Color(0xFFA0B2A5),
@@ -855,7 +866,9 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
   }
 
   // Price & Apply Coupon Row
-  Widget _buildPriceAndCouponSection(BuildContext context) {
+  Widget _buildPriceAndCouponSection(BuildContext context, Turf? turf) {
+    final priceStr = turf != null ? '₹${turf.pricePerHour.toInt()}' : '₹1,200';
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -870,7 +883,7 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
               ),
             ),
             Text(
-              '₹1,200 /hr',
+              '$priceStr /hr',
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -918,7 +931,9 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
   }
 
   // Bottom Fixed Action Bar
-  Widget _buildBottomActionBar(BuildContext context) {
+  Widget _buildBottomActionBar(BuildContext context, Turf? turf) {
+    final priceStr = turf != null ? '₹${turf.pricePerHour.toInt()}' : '₹1,200';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -993,7 +1008,7 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
                         ),
                       ),
                       Text(
-                        'Starts from ₹1,200 /hr',
+                        'Starts from $priceStr /hr',
                         style: GoogleFonts.poppins(
                           fontSize: 9,
                           color: const Color(0xFF1C3823),

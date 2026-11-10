@@ -83,12 +83,11 @@ BookingRepository bookingRepository(Ref ref) {
 Future<List<Booking>> fetchMyBookings(Ref ref) async {
   try {
     final userProfile = await ref.watch(fetchUserProfileProvider.future);
-    if (userProfile == null) return demoSampleBookings;
+    if (userProfile == null) return [];
 
     final bookings = await ref.watch(bookingRepositoryProvider).getMyBookings();
-    if (bookings.isEmpty) return demoSampleBookings;
     return bookings;
   } catch (e) {
-    return demoSampleBookings;
+    return [];
   }
 }

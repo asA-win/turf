@@ -29,6 +29,12 @@ async def on_startup():
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             logger.info("Database tables initialized successfully.")
+            try:
+                from seed_db import seed_data
+                await seed_data()
+                logger.info("Production data seeded successfully.")
+            except Exception as seed_err:
+                logger.warning(f"Seed data notice: {seed_err}")
             break
         except Exception as e:
             logger.warning(f"Database connection attempt {attempt}/9 failed: {e}. Retrying in 2s...")

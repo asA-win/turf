@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/widgets/bys_bottom_nav_bar.dart';
 import 'package:turf_app/core/widgets/bys_profile_avatar.dart';
+import 'package:turf_app/features/turf_details/data/repositories/turf_repository.dart';
 
 class DiscoverTurfScreen extends ConsumerStatefulWidget {
   const DiscoverTurfScreen({super.key});
@@ -33,57 +34,6 @@ class _DiscoverTurfScreenState extends ConsumerState<DiscoverTurfScreen> {
     {'name': 'Top Rated', 'icon': '⭐'},
     {'name': 'Premium', 'icon': '👑'},
     {'name': 'Open Now', 'icon': '🟢'},
-  ];
-
-  final List<Map<String, dynamic>> _turfs = [
-    {
-      'id': 1,
-      'name': 'Play Arena',
-      'tag': 'PREMIUM',
-      'rating': '4.8',
-      'reviews': '128',
-      'distance': '2.1 km',
-      'location': 'Koramangala, Bengaluru',
-      'price': '₹1,200',
-      'features': ['7v7', 'Flood Lights', 'Parking', '+3'],
-      'image': 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=800',
-    },
-    {
-      'id': 2,
-      'name': 'Greenfield Arena',
-      'tag': 'POPULAR',
-      'rating': '4.6',
-      'reviews': '96',
-      'distance': '3.4 km',
-      'location': 'HSR Layout, Bengaluru',
-      'price': '₹1,000',
-      'features': ['7v7', 'Roof Top', 'Cafe', '+2'],
-      'image': 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800',
-    },
-    {
-      'id': 3,
-      'name': 'Turf Nation',
-      'tag': 'BUDGET',
-      'rating': '4.3',
-      'reviews': '75',
-      'distance': '4.6 km',
-      'location': 'Electronic City, Bengaluru',
-      'price': '₹800',
-      'features': ['7v7', 'Flood Lights', 'Washroom', '+2'],
-      'image': 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=800',
-    },
-    {
-      'id': 4,
-      'name': 'Victory Turf',
-      'tag': 'OPEN NOW',
-      'rating': '4.5',
-      'reviews': '61',
-      'distance': '5.2 km',
-      'location': 'Bellandur, Bengaluru',
-      'price': '₹900',
-      'features': ['5v5', 'Parking', 'Drinking Water', '+2'],
-      'image': 'https://images.unsplash.com/photo-1551958219-acbc608c6377?w=800',
-    },
   ];
 
   @override
@@ -311,7 +261,7 @@ class _DiscoverTurfScreenState extends ConsumerState<DiscoverTurfScreen> {
   // Search Bar
   Widget _buildSearchBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       decoration: BoxDecoration(
         color: const Color(0xFF101912),
         borderRadius: BorderRadius.circular(16),
@@ -322,14 +272,29 @@ class _DiscoverTurfScreenState extends ConsumerState<DiscoverTurfScreen> {
           const Icon(Icons.search, color: Color(0xFF6F8275), size: 20),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              'Search turfs, locations, or areas...',
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                color: const Color(0xFF6F8275),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (_) => setState(() {}),
+              style: GoogleFonts.poppins(color: Colors.white, fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'Search turfs, locations, or areas...',
+                hintStyle: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: const Color(0xFF6F8275),
+                ),
+                border: InputBorder.none,
+                isDense: true,
               ),
             ),
           ),
+          if (_searchController.text.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                _searchController.clear();
+                setState(() {});
+              },
+              child: const Icon(Icons.close, color: Colors.white54, size: 18),
+            ),
         ],
       ),
     );
@@ -481,11 +446,48 @@ class _DiscoverTurfScreenState extends ConsumerState<DiscoverTurfScreen> {
 
   // Turf Cards List (Vertical)
   Widget _buildTurfList(BuildContext context) {
-    return Column(
-      children: _turfs.map((turf) {
-        final id = turf['id'] as int;
-        final isFav = _favoriteTurfIds.contains(id);
-        final features = turf['features'] as List<String>;
+    final sportParam = (_selectedSport == 'All' || _selectedSport == 'More') ? null : _selectedSport;
+    final searchParam = _searchController.text.trim().isEmpty ? null : _searchController.text.trim();
+    final turfsAsync = ref.watch(fetchTurfsProvider(searchParam, sportParam));
+
+    return turfsAsync.when(
+      data: (turfs) {
+        if (turfs.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Column(
+                children: [
+                  const Icon(Icons.sports_soccer_outlined, size: 48, color: Colors.white24),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No turfs found for your search',
+                    style: GoogleFonts.poppins(color: const Color(0xFFA0B2A5), fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return Column(
+          children: turfs.map((item) {
+            final id = item.id;
+            final isFav = _favoriteTurfIds.contains(id);
+            final turf = {
+              'id': item.id,
+              'name': item.name,
+              'tag': item.turfType ?? (item.averageRating >= 4.5 ? 'PREMIUM' : 'VERIFIED'),
+              'rating': item.averageRating > 0 ? item.averageRating.toStringAsFixed(1) : '4.6',
+              'reviews': item.totalReviews > 0 ? '${item.totalReviews}' : '96',
+              'distance': '2.1 km',
+              'location': item.location,
+              'price': '₹${item.pricePerHour.toInt()}',
+              'features': (item.amenities != null && item.amenities!.isNotEmpty)
+                  ? item.amenities!.split(',').take(4).map((s) => s.trim()).toList()
+                  : ['7v7', 'Flood Lights', 'Parking', '+2'],
+              'image': item.imageUrl ?? 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=800',
+            };
+            final features = turf['features'] as List<String>;
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 14.0),
@@ -709,6 +711,29 @@ class _DiscoverTurfScreenState extends ConsumerState<DiscoverTurfScreen> {
         );
       }).toList(),
     );
+  },
+  loading: () => const Center(
+    child: Padding(
+      padding: EdgeInsets.symmetric(vertical: 40),
+      child: CircularProgressIndicator(color: AppTheme.primaryGreen),
+    ),
+  ),
+  error: (err, _) => Center(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 30),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Failed to load turfs', style: GoogleFonts.poppins(color: Colors.white54, fontSize: 13)),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppTheme.primaryGreen),
+            onPressed: () => ref.refresh(fetchTurfsProvider(searchParam, sportParam)),
+          ),
+        ],
+      ),
+    ),
+  ),
+);
   }
 
   // Bottom AI Assistant Banner

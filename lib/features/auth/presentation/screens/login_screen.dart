@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -14,7 +15,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   int _selectedTab = 0; // 0 for Phone, 1 for Email
-  final _phoneController = TextEditingController(text: '+91 96765 43210');
+  final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
@@ -48,29 +49,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
-      // Handle role-based demo accounts
-      if (email == 'admin@example.com' || email.startsWith('admin')) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Logged in as Admin'),
-            backgroundColor: AppTheme.primaryGreen,
-            duration: Duration(seconds: 1),
-          ),
-        );
-        context.go('/analytics-dashboard');
-        return;
-      } else if (email == 'owner@example.com' || email.startsWith('owner')) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Logged in as Turf Owner'),
-            backgroundColor: AppTheme.primaryGreen,
-            duration: Duration(seconds: 1),
-          ),
-        );
-        context.go('/venue-owner-dashboard');
-        return;
-      }
-
       if (password.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please enter password')),
@@ -79,30 +57,57 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
 
       await ref.read(authControllerProvider.notifier).login(email, password);
-      if (mounted) {
-        final state = ref.read(authControllerProvider);
-        state.whenOrNull(
-          error: (err, st) {
-            // Fallback for dev / unconfigured Firebase Auth environment
+      if (!mounted) return;
+      final state = ref.read(authControllerProvider);
+      state.whenOrNull(
+        error: (err, st) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(err.toString()),
+              backgroundColor: AppTheme.errorRed,
+            ),
+          );
+        },
+        data: (_) async {
+          final profile = await ref.read(fetchUserProfileProvider.future);
+          if (!mounted) return;
+          if (profile?.role == 'admin') {
+            context.go('/analytics-dashboard');
+          } else if (profile?.role == 'owner') {
+            context.go('/venue-owner-dashboard');
+          } else {
             context.go('/home');
-          },
-          data: (_) => context.go('/home'),
-        );
-      }
+          }
+        },
+      );
     }
   }
 
   void _loginWithGoogle() async {
     await ref.read(authControllerProvider.notifier).signInWithGoogle();
-    if (mounted) {
-      final state = ref.read(authControllerProvider);
-      state.whenOrNull(
-        error: (err, st) {
+    if (!mounted) return;
+    final state = ref.read(authControllerProvider);
+    state.whenOrNull(
+      error: (err, st) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(err.toString()),
+            backgroundColor: AppTheme.errorRed,
+          ),
+        );
+      },
+      data: (_) async {
+        final profile = await ref.read(fetchUserProfileProvider.future);
+        if (!mounted) return;
+        if (profile?.role == 'admin') {
+          context.go('/analytics-dashboard');
+        } else if (profile?.role == 'owner') {
+          context.go('/venue-owner-dashboard');
+        } else {
           context.go('/home');
-        },
-        data: (_) => context.go('/home'),
-      );
-    }
+        }
+      },
+    );
   }
 
   @override
@@ -284,107 +289,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       borderSide: const BorderSide(color: AppTheme.cardBorder),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                // Quick Demo Accounts Shortcuts
-                Text(
-                  'Quick Demo Logins:',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.textGrey,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: () {
-                          setState(() {
-                            _emailController.text = 'user@example.com';
-                            _passwordController.text = 'password123';
-                          });
-                          _onContinue();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                          decoration: BoxDecoration(
-                            color: AppTheme.cardDark,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.5)),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '⚽ Player',
-                            style: GoogleFonts.poppins(
-                              color: Colors.blueAccent,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: InkWell(
-                        onTap: () {
-                          setState(() {
-                            _emailController.text = 'owner@example.com';
-                            _passwordController.text = 'password123';
-                          });
-                          _onContinue();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                          decoration: BoxDecoration(
-                            color: AppTheme.cardDark,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '🏟️ Owner',
-                            style: GoogleFonts.poppins(
-                              color: Colors.amber,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: InkWell(
-                        onTap: () {
-                          setState(() {
-                            _emailController.text = 'admin@example.com';
-                            _passwordController.text = 'password123';
-                          });
-                          _onContinue();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                          decoration: BoxDecoration(
-                            color: AppTheme.cardDark,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.5)),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '🛡️ Admin',
-                            style: GoogleFonts.poppins(
-                              color: AppTheme.primaryGreen,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
 

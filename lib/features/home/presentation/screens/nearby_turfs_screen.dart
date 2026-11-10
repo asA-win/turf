@@ -1,20 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/turf_details/data/repositories/turf_repository.dart';
 
-class NearbyTurfsScreen extends StatelessWidget {
+class NearbyTurfsScreen extends ConsumerWidget {
   const NearbyTurfsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final turfs = [
-      {'name': 'Play Arena', 'distance': '1.2 km', 'rating': '4.6', 'reviews': '368', 'location': 'Koramangala, Bangalore', 'price': '₹1200 - ₹2000/hr'},
-      {'name': 'Kick Off Turf', 'distance': '2.1 km', 'rating': '4.5', 'reviews': '264', 'location': 'HSR Layout, Bangalore', 'price': '₹800 - ₹1600/hr'},
-      {'name': 'Champions Turf', 'distance': '2.8 km', 'rating': '4.4', 'reviews': '216', 'location': 'Koramangala, Bangalore', 'price': '₹1100 - ₹2100/hr'},
-      {'name': 'Goal Arena', 'distance': '3.3 km', 'rating': '4.3', 'reviews': '184', 'location': 'BTM Layout, Bangalore', 'price': '₹900 - ₹1700/hr'},
-      {'name': 'The Football Hub', 'distance': '3.7 km', 'rating': '4.2', 'reviews': '132', 'location': 'Koramangala, Bangalore', 'price': '₹1000 - ₹1800/hr'},
-    ];
+  Widget build(BuildContext context, WidgetRef ref) {
+    final turfsAsync = ref.watch(fetchTurfsProvider(null, null));
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
@@ -40,7 +36,7 @@ class NearbyTurfsScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Showing turfs near Koramangala',
+                    'Showing turfs near you',
                     style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 13),
                   ),
                   OutlinedButton.icon(
@@ -55,57 +51,94 @@ class NearbyTurfsScreen extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(20),
-                itemCount: turfs.length,
-                itemBuilder: (context, index) {
-                  final t = turfs[index];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.all(12),
-                      leading: Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: AppTheme.surfaceDark,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.sports_soccer, color: AppTheme.primaryGreen, size: 32),
-                      ),
-                      title: Text(
-                        t['name']!,
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 4),
-                          Row(
+              child: turfsAsync.when(
+                data: (turfs) {
+                  if (turfs.isEmpty) {
+                    return Center(
+                      child: Text('No turfs found nearby', style: GoogleFonts.poppins(color: Colors.white54)),
+                    );
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: turfs.length,
+                    itemBuilder: (context, index) {
+                      final t = turfs[index];
+                      final rating = t.averageRating > 0 ? t.averageRating.toStringAsFixed(1) : '4.6';
+                      final reviews = t.totalReviews > 0 ? '${t.totalReviews}' : '98';
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.all(12),
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: t.imageUrl != null
+                                ? Image.network(
+                                    t.imageUrl!,
+                                    width: 60,
+                                    height: 60,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      width: 60,
+                                      height: 60,
+                                      color: AppTheme.surfaceDark,
+                                      child: const Icon(Icons.sports_soccer, color: AppTheme.primaryGreen, size: 30),
+                                    ),
+                                  )
+                                : Container(
+                                    width: 60,
+                                    height: 60,
+                                    color: AppTheme.surfaceDark,
+                                    child: const Icon(Icons.sports_soccer, color: AppTheme.primaryGreen, size: 30),
+                                  ),
+                          ),
+                          title: Text(
+                            t.name,
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.star, color: Colors.amber, size: 14),
-                              const SizedBox(width: 4),
-                              Text('${t['rating']} (${t['reviews']})', style: GoogleFonts.poppins(color: Colors.white, fontSize: 11)),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.near_me, color: AppTheme.primaryGreen, size: 14),
-                              const SizedBox(width: 2),
-                              Text(t['distance']!, style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontSize: 11)),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(Icons.star, color: Colors.amber, size: 14),
+                                  const SizedBox(width: 4),
+                                  Text('$rating ($reviews)', style: GoogleFonts.poppins(color: Colors.white, fontSize: 11)),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.near_me, color: AppTheme.primaryGreen, size: 14),
+                                  const SizedBox(width: 2),
+                                  Text('2.1 km', style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontSize: 11)),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(t.location, style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 11)),
+                              const SizedBox(height: 4),
+                              Text('₹${t.pricePerHour.toInt()}/hr', style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 13)),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(t['location']!, style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 11)),
-                          const SizedBox(height: 4),
-                          Text(t['price']!, style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 13)),
-                        ],
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.favorite_border, color: AppTheme.textGrey),
-                        onPressed: () {},
-                      ),
-                      onTap: () => context.push('/turf-details/${index + 1}'),
-                    ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.favorite_border, color: AppTheme.textGrey),
+                            onPressed: () {},
+                          ),
+                          onTap: () => context.push('/turf-details/${t.id}'),
+                        ),
+                      );
+                    },
                   );
                 },
+                loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen)),
+                error: (err, _) => Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Error loading turfs', style: GoogleFonts.poppins(color: Colors.white54)),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, color: AppTheme.primaryGreen),
+                        onPressed: () => ref.refresh(fetchTurfsProvider(null, null)),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],

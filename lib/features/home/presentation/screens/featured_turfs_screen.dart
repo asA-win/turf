@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/turf_details/data/repositories/turf_repository.dart';
 
-class FeaturedTurfsScreen extends StatelessWidget {
+class FeaturedTurfsScreen extends ConsumerWidget {
   const FeaturedTurfsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final turfsAsync = ref.watch(fetchTurfsProvider(null, null));
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
@@ -44,12 +48,15 @@ class FeaturedTurfsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Book the best turfs with premium facilities.',
+                      'Book the best turfs with verified premium facilities.',
                       style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12),
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () => context.push('/turf-details/1'),
+                      onPressed: () {
+                        final firstId = turfsAsync.valueOrNull?.firstOrNull?.id ?? 1;
+                        context.push('/turf-details/$firstId');
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryGreen,
                         minimumSize: const Size(120, 36),
@@ -65,38 +72,81 @@ class FeaturedTurfsScreen extends StatelessWidget {
                 style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
               ),
               const SizedBox(height: 12),
-              _pickItem(context, 'The Football Hub', '4.7 (412)', 'Whitefield', '₹1300 - ₹2500/hr'),
-              _pickItem(context, 'Victory Turf', '4.6 (294)', 'Marathahalli', '₹1000 - ₹1900/hr'),
-              _pickItem(context, 'Elite Sports Arena', '4.5 (210)', 'HSR Layout', '₹1500 - ₹2800/hr'),
+              turfsAsync.when(
+                data: (turfs) {
+                  if (turfs.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: Text('No featured turfs available', style: GoogleFonts.poppins(color: Colors.white54)),
+                      ),
+                    );
+                  }
+                  return Column(
+                    children: turfs.map((turf) {
+                      final rating = turf.averageRating > 0 ? turf.averageRating.toStringAsFixed(1) : '4.7';
+                      final reviews = turf.totalReviews > 0 ? '${turf.totalReviews}' : '124';
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardDark,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.cardBorder),
+                        ),
+                        child: ListTile(
+                          onTap: () => context.push('/turf-details/${turf.id}'),
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: turf.imageUrl != null
+                                ? Image.network(
+                                    turf.imageUrl!,
+                                    width: 50,
+                                    height: 50,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      width: 50,
+                                      height: 50,
+                                      color: AppTheme.surfaceDark,
+                                      child: const Icon(Icons.star, color: Colors.amber),
+                                    ),
+                                  )
+                                : Container(
+                                    width: 50,
+                                    height: 50,
+                                    color: AppTheme.surfaceDark,
+                                    child: const Icon(Icons.star, color: Colors.amber),
+                                  ),
+                          ),
+                          title: Text(turf.name, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
+                          subtitle: Text('${turf.location} • ★ $rating ($reviews)', style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12)),
+                          trailing: Text('₹${turf.pricePerHour.toInt()}/hr', style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+                loading: () => const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: CircularProgressIndicator(color: AppTheme.primaryGreen),
+                  ),
+                ),
+                error: (err, _) => Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Error loading turfs', style: GoogleFonts.poppins(color: Colors.white54)),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, color: AppTheme.primaryGreen),
+                        onPressed: () => ref.refresh(fetchTurfsProvider(null, null)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _pickItem(BuildContext context, String title, String rating, String loc, String price) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: AppTheme.cardDark,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.cardBorder),
-      ),
-      child: ListTile(
-        onTap: () => context.push('/turf-details/1'),
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceDark,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(Icons.star, color: Colors.amber),
-        ),
-        title: Text(title, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
-        subtitle: Text('$loc • ★ $rating', style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12)),
-        trailing: Text(price, style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 12)),
       ),
     );
   }

@@ -1,12 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/providers/location_provider.dart';
 import 'package:turf_app/core/widgets/bys_logo.dart';
 import 'package:turf_app/core/widgets/bys_bottom_nav_bar.dart';
 import 'package:turf_app/core/widgets/bys_profile_avatar.dart';
+import 'package:turf_app/features/turf_details/data/repositories/turf_repository.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -19,6 +22,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _selectedSport = 'Football';
   String _selectedTurfMode = 'book'; // 'book' (Book Turf) or 'join' (Join Turf)
   final Set<int> _favoriteTurfIds = {};
+  StreamSubscription<Map<String, dynamic>>? _bookingUpdatesSub;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      final realtime = ref.read(realtimeServiceProvider);
+      _bookingUpdatesSub = realtime.subscribeToChannel('booking_updates').listen((_) {
+        if (!mounted) return;
+        ref.invalidate(fetchTurfsProvider);
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _bookingUpdatesSub?.cancel();
+    super.dispose();
+  }
 
   final List<Map<String, dynamic>> _sports = [
     {'name': 'Football', 'icon': Icons.sports_soccer},
@@ -27,105 +49,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     {'name': 'Basketball', 'icon': Icons.sports_basketball},
     {'name': 'Tennis', 'icon': Icons.sports_baseball},
     {'name': 'More', 'icon': Icons.more_horiz},
-  ];
-
-  final List<Map<String, dynamic>> _featuredTurfs = [
-    {
-      'id': 1,
-      'name': 'Play Arena',
-      'tag': 'PREMIUM',
-      'rating': '4.8',
-      'reviews': '128',
-      'distance': '2.1 km',
-      'location': 'Koramangala, Bengaluru',
-      'price': '₹1,200',
-      'image': 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=800',
-    },
-    {
-      'id': 2,
-      'name': 'Greenfield Arena',
-      'tag': 'POPULAR',
-      'rating': '4.6',
-      'reviews': '96',
-      'distance': '3.4 km',
-      'location': 'HSR Layout, Bengaluru',
-      'price': '₹1,000',
-      'image': 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800',
-    },
-    {
-      'id': 3,
-      'name': 'Turf Nation',
-      'tag': 'BUDGET',
-      'rating': '4.3',
-      'reviews': '75',
-      'distance': '4.6 km',
-      'location': 'Electronic City, Bengaluru',
-      'price': '₹800',
-      'image': 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=800',
-    },
-  ];
-
-  final List<Map<String, dynamic>> _joinTurfs = [
-    {
-      'id': 1,
-      'name': 'Play Arena',
-      'sport': 'Football',
-      'format': '5v5 Friendly',
-      'spotsLeft': 3,
-      'totalSpots': 10,
-      'joinedCount': 7,
-      'time': 'Today • 7:00 PM',
-      'distance': '2.1 km',
-      'location': 'Koramangala, Bengaluru',
-      'pricePerPerson': '₹150',
-      'host': 'Alex R.',
-      'image': 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=800',
-    },
-    {
-      'id': 2,
-      'name': 'Greenfield Arena',
-      'sport': 'Football',
-      'format': '7v7 Match',
-      'spotsLeft': 2,
-      'totalSpots': 14,
-      'joinedCount': 12,
-      'time': 'Today • 8:30 PM',
-      'distance': '3.4 km',
-      'location': 'HSR Layout, Bengaluru',
-      'pricePerPerson': '₹180',
-      'host': 'Praveen K.',
-      'image': 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800',
-    },
-    {
-      'id': 3,
-      'name': 'Turf Nation',
-      'sport': 'Cricket',
-      'format': 'Box 6v6',
-      'spotsLeft': 4,
-      'totalSpots': 12,
-      'joinedCount': 8,
-      'time': 'Tomorrow • 6:30 AM',
-      'distance': '4.6 km',
-      'location': 'Electronic City, Bengaluru',
-      'pricePerPerson': '₹120',
-      'host': 'Rohit S.',
-      'image': 'https://images.unsplash.com/photo-1575361204480-aadea25e6e68?w=800',
-    },
-    {
-      'id': 4,
-      'name': 'Victory Turf',
-      'sport': 'Badminton',
-      'format': 'Doubles Rally',
-      'spotsLeft': 1,
-      'totalSpots': 4,
-      'joinedCount': 3,
-      'time': 'Today • 9:00 PM',
-      'distance': '5.2 km',
-      'location': 'Bellandur, Bengaluru',
-      'pricePerPerson': '₹100',
-      'host': 'Siddharth M.',
-      'image': 'https://images.unsplash.com/photo-1551958219-acbc608c6377?w=800',
-    },
   ];
 
   final List<Map<String, dynamic>> _activeMatches = [
@@ -1285,21 +1208,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF9800).withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFFF9800).withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      '${_joinTurfs.length} OPEN',
-                      style: GoogleFonts.poppins(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFFFFB74D),
-                      ),
-                    ),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final sportParam = (_selectedSport == 'All' || _selectedSport == 'More') ? null : _selectedSport;
+                      final count = ref.watch(fetchTurfsProvider(null, sportParam)).valueOrNull?.length ?? 3;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF9800).withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFFF9800).withValues(alpha: 0.3)),
+                        ),
+                        child: Text(
+                          '$count OPEN',
+                          style: GoogleFonts.poppins(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFFFB74D),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -1588,195 +1517,265 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // Featured Turfs Horizontal List
   Widget _buildFeaturedTurfsList(BuildContext context) {
+    final sportParam = (_selectedSport == 'All' || _selectedSport == 'More') ? null : _selectedSport;
+    final turfsAsync = ref.watch(fetchTurfsProvider(null, sportParam));
+
     return SizedBox(
       height: 220,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: _featuredTurfs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final turf = _featuredTurfs[index];
-          final id = turf['id'] as int;
-          final isFav = _favoriteTurfIds.contains(id);
-
-          return GestureDetector(
-            onTap: () => context.push('/turf-details/$id'),
-            child: Container(
-              width: 175,
-              decoration: BoxDecoration(
-                color: const Color(0xFF101912),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF1B2A1F)),
+      child: turfsAsync.when(
+        data: (turfs) {
+          if (turfs.isEmpty) {
+            return Center(
+              child: Text(
+                'No turfs available for $_selectedSport yet',
+                style: GoogleFonts.poppins(color: const Color(0xFFA0B2A5), fontSize: 12),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Image with Tag & Heart
-                  Stack(
+            );
+          }
+          return ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: turfs.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final turf = turfs[index];
+              final id = turf.id;
+              final isFav = _favoriteTurfIds.contains(id);
+              final image = turf.imageUrl ?? 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=800';
+              final tag = turf.turfType ?? (turf.averageRating >= 4.5 ? 'PREMIUM' : 'VERIFIED');
+              final rating = turf.averageRating > 0 ? turf.averageRating.toStringAsFixed(1) : '4.6';
+              final reviews = turf.totalReviews > 0 ? '${turf.totalReviews}' : '98';
+              final price = '₹${turf.pricePerHour.toInt()}';
+
+              return GestureDetector(
+                onTap: () => context.push('/turf-details/$id'),
+                child: Container(
+                  width: 175,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF101912),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF1B2A1F)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                        child: Image.network(
-                          turf['image'] as String,
-                          height: 105,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            height: 105,
-                            color: const Color(0xFF16251B),
-                            child: const Icon(Icons.sports_soccer, color: AppTheme.primaryGreen),
+                      // Image with Tag & Heart
+                      Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                            child: Image.network(
+                              image,
+                              height: 105,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                height: 105,
+                                color: const Color(0xFF16251B),
+                                child: const Icon(Icons.sports_soccer, color: AppTheme.primaryGreen),
+                              ),
+                            ),
                           ),
-                        ),
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.65),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.white24, width: 0.5),
+                              ),
+                              child: Text(
+                                tag,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 6,
+                            right: 6,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  if (isFav) {
+                                    _favoriteTurfIds.remove(id);
+                                  } else {
+                                    _favoriteTurfIds.add(id);
+                                  }
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  isFav ? Icons.favorite : Icons.favorite_border,
+                                  color: isFav ? Colors.red : Colors.white,
+                                  size: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.65),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.white24, width: 0.5),
-                          ),
-                          child: Text(
-                            turf['tag'] as String,
-                            style: GoogleFonts.poppins(
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 0.5,
+
+                      // Info
+                      Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              turf.name,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 6,
-                        right: 6,
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              if (isFav) {
-                                _favoriteTurfIds.remove(id);
-                              } else {
-                                _favoriteTurfIds.add(id);
-                              }
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              shape: BoxShape.circle,
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                const Icon(Icons.star, color: Color(0xFFFFB300), size: 12),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '$rating ($reviews)',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 10,
+                                    color: const Color(0xFFA0B2A5),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Text('•', style: TextStyle(color: Colors.white38, fontSize: 10)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '2.1 km',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 10,
+                                    color: const Color(0xFFA0B2A5),
+                                  ),
+                                ),
+                              ],
                             ),
-                            child: Icon(
-                              isFav ? Icons.favorite : Icons.favorite_border,
-                              color: isFav ? Colors.red : Colors.white,
-                              size: 16,
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on_outlined, color: Color(0xFF7E8F83), size: 11),
+                                const SizedBox(width: 2),
+                                Expanded(
+                                  child: Text(
+                                    turf.location,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 9,
+                                      color: const Color(0xFF7E8F83),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '$price /hr',
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryGreen,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-
-                  // Info
-                  Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          turf['name'] as String,
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            const Icon(Icons.star, color: Color(0xFFFFB300), size: 12),
-                            const SizedBox(width: 3),
-                            Text(
-                              '${turf['rating']} (${turf['reviews']})',
-                              style: GoogleFonts.poppins(
-                                fontSize: 10,
-                                color: const Color(0xFFA0B2A5),
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Text('•', style: TextStyle(color: Colors.white38, fontSize: 10)),
-                            const SizedBox(width: 4),
-                            Text(
-                              turf['distance'] as String,
-                              style: GoogleFonts.poppins(
-                                fontSize: 10,
-                                color: const Color(0xFFA0B2A5),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            const Icon(Icons.location_on_outlined, color: Color(0xFF7E8F83), size: 11),
-                            const SizedBox(width: 2),
-                            Expanded(
-                              child: Text(
-                                turf['location'] as String,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 9,
-                                  color: const Color(0xFF7E8F83),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '${turf['price']} /hr',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryGreen,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           );
         },
+        loading: () => const Center(
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(strokeWidth: 2.5, color: AppTheme.primaryGreen),
+          ),
+        ),
+        error: (err, _) => Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Could not load turfs',
+                style: GoogleFonts.poppins(color: Colors.white54, fontSize: 12),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh, color: AppTheme.primaryGreen, size: 18),
+                onPressed: () => ref.refresh(fetchTurfsProvider(null, sportParam)),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   // Join Turfs (Turfs with Space Left) Horizontal List
   Widget _buildJoinTurfsList(BuildContext context) {
+    final sportParam = (_selectedSport == 'All' || _selectedSport == 'More') ? null : _selectedSport;
+    final turfsAsync = ref.watch(fetchTurfsProvider(null, sportParam));
+
     return SizedBox(
       height: 252,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: _joinTurfs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final turf = _joinTurfs[index];
-          final totalSpots = turf['totalSpots'] as int;
-          final joinedCount = turf['joinedCount'] as int;
-          final spotsLeft = turf['spotsLeft'] as int;
-          final progress = joinedCount / totalSpots;
+      child: turfsAsync.when(
+        data: (turfs) {
+          if (turfs.isEmpty) {
+            return Center(
+              child: Text(
+                'No open slots found for $_selectedSport',
+                style: GoogleFonts.poppins(color: const Color(0xFFA0B2A5), fontSize: 12),
+              ),
+            );
+          }
+          return ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: turfs.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final item = turfs[index];
+              const totalSpots = 10;
+              const joinedCount = 7;
+              const spotsLeft = 3;
+              const progress = joinedCount / totalSpots;
+              final turf = {
+                'id': item.id,
+                'name': item.name,
+                'sport': item.sportTypes?.split(',').first.trim() ?? 'Football',
+                'format': '5v5 Friendly',
+                'spotsLeft': spotsLeft,
+                'totalSpots': totalSpots,
+                'joinedCount': joinedCount,
+                'time': 'Today • 7:00 PM',
+                'distance': '2.1 km',
+                'location': item.location,
+                'pricePerPerson': '₹${(item.pricePerHour / 10).round()}',
+                'host': 'Community Match',
+                'image': item.imageUrl ?? 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=800',
+              };
 
-          return GestureDetector(
-            onTap: () => _showJoinConfirmationDialog(context, turf),
+              return GestureDetector(
+                onTap: () => _showJoinConfirmationDialog(context, turf),
             child: Container(
               width: 195,
               decoration: BoxDecoration(
@@ -1982,8 +1981,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           );
         },
+      );
+    },
+    loading: () => const Center(
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF00E5FF)),
       ),
-    );
+    ),
+    error: (err, _) => Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Could not load joinable slots',
+            style: GoogleFonts.poppins(color: Colors.white54, fontSize: 12),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xFF00E5FF), size: 18),
+            onPressed: () => ref.refresh(fetchTurfsProvider(null, sportParam)),
+          ),
+        ],
+      ),
+    ),
+  ),
+);
   }
 
   // Bottom Sheet for Joining a Turf / Slot with space left

@@ -18,7 +18,7 @@ class ApiConstants {
         return 'http://10.0.2.2:8000/api/v1';
       }
     }
-    return 'https://turf-29zo.onrender.com/api/v1';
+    return 'https://turf-backend-rltw.onrender.com/api/v1';
   }
 
   // Single source of truth for WebSocket base URL
@@ -35,7 +35,7 @@ class ApiConstants {
         return 'ws://10.0.2.2:8000/api/v1/ws';
       }
     }
-    return 'wss://turf-29zo.onrender.com/api/v1/ws';
+    return 'wss://turf-backend-rltw.onrender.com/api/v1/ws';
   }
 
   static String get loginUrl => '$baseUrl/auth/login';

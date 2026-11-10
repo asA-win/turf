@@ -1,10 +1,74 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/auth/presentation/controllers/auth_controller.dart';
 
-class DeleteAccountScreen extends StatelessWidget {
+class DeleteAccountScreen extends ConsumerStatefulWidget {
   const DeleteAccountScreen({super.key});
+
+  @override
+  ConsumerState<DeleteAccountScreen> createState() => _DeleteAccountScreenState();
+}
+
+class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
+  bool _isDeleting = false;
+
+  void _onDeleteAccount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.cardDark,
+        title: Text(
+          'Confirm Permanent Deletion',
+          style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Are you absolutely sure you want to permanently delete your account and all associated data?',
+          style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed),
+            child: Text('Delete', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isDeleting = true);
+    try {
+      final dio = ref.read(dioClientProvider);
+      await dio.delete('/users/me');
+      await ref.read(authControllerProvider.notifier).logout();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Account deleted successfully'),
+          backgroundColor: AppTheme.primaryGreen,
+        ),
+      );
+      context.go('/welcome');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isDeleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete account: $e'),
+          backgroundColor: AppTheme.errorRed,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,13 +134,16 @@ class DeleteAccountScreen extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              ElevatedButton(
-                onPressed: () => context.go('/welcome'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.errorRed,
+              if (_isDeleting)
+                const CircularProgressIndicator(color: AppTheme.errorRed)
+              else
+                ElevatedButton(
+                  onPressed: _onDeleteAccount,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.errorRed,
+                  ),
+                  child: Text('Delete My Account', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
-                child: Text('Delete My Account', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white)),
-              ),
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => context.pop(),

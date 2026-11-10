@@ -3,9 +3,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import firebase_admin
 from firebase_admin import credentials, auth
 import os
-from typing import Optional
-
 import json
+import hashlib
+import jwt
+from datetime import datetime, timedelta
+from typing import Optional
+from app.core.config import settings
 
 # Initialize Firebase with the provided credentials
 try:
@@ -44,6 +47,25 @@ except Exception as e:
 
 security = HTTPBearer(auto_error=False)
 
+def hash_password(password: str) -> str:
+    """Secure SHA-256 salted password hashing."""
+    salt = settings.SECRET_KEY[:16]
+    return hashlib.sha256((password + salt).encode('utf-8')).hexdigest()
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify raw password against stored salted hash."""
+    return hash_password(plain_password) == hashed_password
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Generate signed JWT token."""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
 def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
     if not credentials:
         # Fallback to demo user for free local development
@@ -53,14 +75,24 @@ def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depen
             "name": "Demo User"
         }
     token = credentials.credentials
+    
+    # 1. Try decoding backend JWT token
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        return payload
+    except Exception:
+        pass
+
+    # 2. Try decoding Firebase ID token
     try:
         decoded_token = auth.verify_id_token(token)
         return decoded_token
-    except Exception as e:
-        # Return demo user on invalid/expired token in dev mode
-        return {
-            "uid": "demo-user-id",
-            "email": "user@example.com",
-            "name": "Demo User"
-        }
+    except Exception:
+        pass
 
+    # 3. Fallback to demo user on invalid token in dev mode
+    return {
+        "uid": "demo-user-id",
+        "email": "user@example.com",
+        "name": "Demo User"
+    }

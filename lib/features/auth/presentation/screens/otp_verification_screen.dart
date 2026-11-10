@@ -1,27 +1,35 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
 
-class OtpVerificationScreen extends StatefulWidget {
+class OtpVerificationScreen extends ConsumerStatefulWidget {
   final String phoneNumber;
   const OtpVerificationScreen({super.key, this.phoneNumber = '+91 98765 43210'});
 
   @override
-  State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
+  ConsumerState<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
 }
 
-class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
+class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   final List<String> _otpDigits = ['', '', '', '', '', ''];
   int _currentIndex = 0;
   Timer? _timer;
   int _secondsRemaining = 45;
+  bool _isVerifying = false;
 
   @override
   void initState() {
     super.initState();
     _startCountdown();
+    // Auto-trigger OTP send on screen entry
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(authControllerProvider.notifier).sendOtp(widget.phoneNumber);
+    });
   }
 
   void _startCountdown() {
@@ -46,18 +54,26 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     super.dispose();
   }
 
-  void _resendOtp() {
+  void _resendOtp() async {
     _startCountdown();
+    final success = await ref.read(authControllerProvider.notifier).sendOtp(widget.phoneNumber);
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('⚡ A new real-time OTP code was sent to ${widget.phoneNumber}'),
-        backgroundColor: AppTheme.primaryGreen,
+        content: Text(
+          success 
+              ? '⚡ A new real-time OTP was sent to ${widget.phoneNumber}'
+              : 'Failed to send OTP. Please try again.',
+        ),
+        backgroundColor: success ? AppTheme.primaryGreen : AppTheme.errorRed,
         duration: const Duration(seconds: 2),
       ),
     );
   }
 
-  void _onKeyPress(String val) {
+  void _onKeyPress(String val) async {
+    if (_isVerifying) return;
+
     if (val == 'backspace') {
       if (_currentIndex > 0) {
         setState(() {
@@ -81,10 +97,48 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     }
 
     if (_otpDigits.every((d) => d.isNotEmpty)) {
-      // Auto verify in real time
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) context.go('/home');
-      });
+      final code = _otpDigits.join();
+      setState(() => _isVerifying = true);
+
+      final verified = await ref.read(authControllerProvider.notifier).verifyOtp(
+        widget.phoneNumber,
+        code,
+      );
+
+      if (!mounted) return;
+      setState(() => _isVerifying = false);
+
+      if (verified) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Phone verified successfully!'),
+            backgroundColor: AppTheme.primaryGreen,
+            duration: Duration(seconds: 1),
+          ),
+        );
+        final profile = await ref.read(fetchUserProfileProvider.future);
+        if (!mounted) return;
+        if (profile?.role == 'admin') {
+          context.go('/analytics-dashboard');
+        } else if (profile?.role == 'owner') {
+          context.go('/venue-owner-dashboard');
+        } else {
+          context.go('/home');
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Invalid or expired code. Please enter valid OTP.'),
+            backgroundColor: AppTheme.errorRed,
+          ),
+        );
+        setState(() {
+          for (int i = 0; i < 6; i++) {
+            _otpDigits[i] = '';
+          }
+          _currentIndex = 0;
+        });
+      }
     }
   }
 
@@ -139,7 +193,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                             border: Border.all(
                               color: isCurrent
                                   ? AppTheme.primaryGreen
-                                  : (isFilled ? AppTheme.primaryGreen.withValues(alpha: 0.5) : AppTheme.cardBorder),
+                                  : (isFilled ? AppTheme.primaryGreen.withOpacity(0.5) : AppTheme.cardBorder),
                               width: isCurrent ? 2 : 1,
                             ),
                           ),
@@ -178,6 +232,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         ),
                       ),
                     ),
+                    if (_isVerifying)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 16.0),
+                          child: CircularProgressIndicator(color: AppTheme.primaryGreen),
+                        ),
+                      ),
                   ],
                 ),
               ),

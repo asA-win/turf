@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Turf App"
     DATABASE_URL: str = "sqlite+aiosqlite:///./turf.db"
     REDIS_URL: str = "redis://localhost:6379"
-    SECRET_KEY: str = "supersecretkey_turf_app_2026"
+    SECRET_KEY: str = "supersecretkey_turf_app_2026_production_secure_key_32bytes"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # 7 days
     

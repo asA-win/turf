@@ -155,3 +155,56 @@ class FCMToken(FCMTokenBase):
     user_id: int
     class Config:
         from_attributes = True
+
+# --- Authentication & OTP Schemas ---
+class SendOTPRequest(BaseModel):
+    identifier: str # phone or email
+
+class VerifyOTPRequest(BaseModel):
+    identifier: str
+    code: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class ForgotPasswordRequest(BaseModel):
+    identifier: str # phone or email
+
+class ResetPasswordRequest(BaseModel):
+    identifier: str
+    code: str
+    new_password: str
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+class AuthTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: User
+
+# --- Wallet & Referral Schemas ---
+class WalletResponse(BaseModel):
+    id: int
+    user_id: int
+    balance: float
+    coins: int
+    class Config:
+        from_attributes = True
+
+class WalletTransactionResponse(BaseModel):
+    id: int
+    title: str
+    amount: float
+    transaction_type: str
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class ReferralResponse(BaseModel):
+    referral_code: str
+    total_referred: int = 0
+    total_rewards: float = 0.0
+

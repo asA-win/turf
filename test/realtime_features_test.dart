@@ -45,7 +45,8 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Smart Parking'), findsOneWidget);
     expect(find.text('IOT LIVE'), findsOneWidget);
@@ -66,7 +67,8 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Booking Requests'), findsOneWidget);
     expect(find.text('LIVE SYNC'), findsOneWidget);
@@ -86,7 +88,8 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('My Bookings'), findsOneWidget);
     expect(find.text('LIVE'), findsOneWidget);

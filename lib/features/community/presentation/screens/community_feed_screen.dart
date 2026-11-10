@@ -319,6 +319,9 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                       'comments': 0,
                     });
 
+                    final messenger = ScaffoldMessenger.of(context);
+                    final nav = Navigator.of(ctx);
+
                     // REST call to persist
                     try {
                       final dio = ref.read(apiClientProvider);
@@ -329,11 +332,11 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                     } catch (e) {
                       debugPrint('Community post REST fallback: $e');
                     }
+                    nav.pop();
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('⚡ Post published to Community live!'), backgroundColor: AppTheme.primaryGreen),
+                    );
                   }
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('⚡ Post published to Community live!'), backgroundColor: AppTheme.primaryGreen),
-                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primaryGreen,

@@ -1,7 +1,12 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/features/auth/presentation/controllers/auth_providers.dart';
+import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
 
 part 'auth_controller.g.dart';
+
+const _secureStorage = FlutterSecureStorage();
 
 @riverpod
 class AuthController extends _$AuthController {
@@ -14,9 +19,31 @@ class AuthController extends _$AuthController {
     state = const AsyncValue.loading();
     final result = await ref.read(authRepositoryProvider).loginWithEmail(email, password);
     
-    result.fold(
-      (failure) => state = AsyncValue.error(failure.message, StackTrace.current),
-      (_) => state = const AsyncValue.data(null),
+    await result.fold(
+      (failure) async {
+        // Fallback to backend native JWT authentication
+        try {
+          final dio = ref.read(dioClientProvider);
+          final response = await dio.post('/auth/login', data: {
+            'email': email,
+            'password': password,
+          });
+          final token = response.data['access_token'];
+          if (token != null) {
+            await _secureStorage.write(key: 'auth_token', value: token.toString());
+            ref.invalidate(fetchUserProfileProvider);
+            state = const AsyncValue.data(null);
+            return;
+          }
+          state = AsyncValue.error(failure.message, StackTrace.current);
+        } catch (_) {
+          state = AsyncValue.error(failure.message, StackTrace.current);
+        }
+      },
+      (_) async {
+        ref.invalidate(fetchUserProfileProvider);
+        state = const AsyncValue.data(null);
+      },
     );
   }
 
@@ -34,9 +61,40 @@ class AuthController extends _$AuthController {
     state = const AsyncValue.loading();
     final result = await ref.read(authRepositoryProvider).signUpWithEmail(email, password, username, contact);
     
-    result.fold(
-      (failure) => state = AsyncValue.error(failure.message, StackTrace.current),
-      (_) => state = const AsyncValue.data(null),
+    await result.fold(
+      (failure) async {
+        // Fallback to backend user creation
+        try {
+          final dio = ref.read(dioClientProvider);
+          final res = await dio.post('/users/', data: {
+            'firebase_uid': 'usr_${email.replaceAll('@', '_').replaceAll('.', '_')}',
+            'email': email,
+            'full_name': username,
+            'phone': contact,
+          });
+          if (res.statusCode == 200 || res.statusCode == 201) {
+            // Also login
+            final loginRes = await dio.post('/auth/login', data: {
+              'email': email,
+              'password': password,
+            });
+            final token = loginRes.data['access_token'];
+            if (token != null) {
+              await _secureStorage.write(key: 'auth_token', value: token.toString());
+              ref.invalidate(fetchUserProfileProvider);
+            }
+            state = const AsyncValue.data(null);
+            return;
+          }
+          state = AsyncValue.error(failure.message, StackTrace.current);
+        } catch (_) {
+          state = AsyncValue.error(failure.message, StackTrace.current);
+        }
+      },
+      (_) async {
+        ref.invalidate(fetchUserProfileProvider);
+        state = const AsyncValue.data(null);
+      },
     );
   }
 
@@ -46,11 +104,45 @@ class AuthController extends _$AuthController {
     
     result.fold(
       (failure) => state = AsyncValue.error(failure.message, StackTrace.current),
-      (_) => state = const AsyncValue.data(null),
+      (_) {
+        ref.invalidate(fetchUserProfileProvider);
+        state = const AsyncValue.data(null);
+      },
     );
   }
 
+  Future<bool> sendOtp(String identifier) async {
+    try {
+      final dio = ref.read(dioClientProvider);
+      final response = await dio.post('/auth/send-otp', data: {'identifier': identifier});
+      return response.data['success'] == true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> verifyOtp(String identifier, String code) async {
+    try {
+      final dio = ref.read(dioClientProvider);
+      final response = await dio.post('/auth/verify-otp', data: {
+        'identifier': identifier,
+        'code': code,
+      });
+      final token = response.data['access_token'];
+      if (token != null) {
+        await _secureStorage.write(key: 'auth_token', value: token.toString());
+        ref.invalidate(fetchUserProfileProvider);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<void> logout() async {
+    await _secureStorage.delete(key: 'auth_token');
     await ref.read(authRepositoryProvider).signOut();
+    ref.invalidate(fetchUserProfileProvider);
   }
 }

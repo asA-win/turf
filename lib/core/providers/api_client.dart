@@ -1,11 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:turf_app/core/constants/api_constants.dart';
 
 part 'api_client.g.dart';
+
+const _secureStorage = FlutterSecureStorage();
 
 @riverpod
 Dio dioClient(Ref ref) {
@@ -23,8 +26,22 @@ Dio dioClient(Ref ref) {
       onRequest: (options, handler) async {
         final user = firebase_auth.FirebaseAuth.instance.currentUser;
         if (user != null) {
-          final token = await user.getIdToken();
-          options.headers['Authorization'] = 'Bearer $token';
+          try {
+            final token = await user.getIdToken();
+            options.headers['Authorization'] = 'Bearer $token';
+          } catch (_) {}
+        }
+        
+        // If no Firebase token header set, use securely persisted JWT token
+        if (!options.headers.containsKey('Authorization')) {
+          try {
+            final jwtToken = await _secureStorage.read(key: 'auth_token');
+            if (jwtToken != null && jwtToken.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer $jwtToken';
+            }
+          } catch (e) {
+            debugPrint('Error reading secure token: $e');
+          }
         }
         return handler.next(options);
       },

@@ -4,8 +4,11 @@ from sqlalchemy.future import select
 from typing import List, Optional
 
 from app.db.session import get_db
-from app.db.models import User, FCMToken
-from app.schemas.schemas import User as UserSchema, UserCreate, FCMTokenCreate, FCMToken as FCMTokenSchema, UserUpdateRole
+from app.db.models import User, FCMToken, Wallet, WalletTransaction, Referral
+from app.schemas.schemas import (
+    User as UserSchema, UserCreate, FCMTokenCreate, FCMToken as FCMTokenSchema,
+    UserUpdateRole, WalletResponse, WalletTransactionResponse, ReferralResponse
+)
 from app.core.security import get_current_user
 from app.core.websocket_manager import ws_manager
 import logging
@@ -210,3 +213,115 @@ async def update_user_me(
     })
 
     return user
+
+@router.delete("/me")
+async def delete_user_me(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete current authenticated user account."""
+    firebase_uid = current_user.get("uid")
+    result = await db.execute(select(User).filter(User.firebase_uid == firebase_uid))
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    await db.delete(user)
+    await db.commit()
+    return {"success": True, "message": "Account deleted successfully"}
+
+@router.get("/wallet", response_model=WalletResponse)
+async def get_user_wallet(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get persistent wallet balance and coins for authenticated user."""
+    firebase_uid = current_user.get("uid")
+    user = await get_db_user(db, firebase_uid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    result = await db.execute(select(Wallet).filter(Wallet.user_id == user.id))
+    wallet = result.scalar_one_or_none()
+    if not wallet:
+        wallet = Wallet(user_id=user.id, balance=500.0, coins=120)
+        db.add(wallet)
+        await db.commit()
+        await db.refresh(wallet)
+    return wallet
+
+@router.post("/wallet/add-money", response_model=WalletResponse)
+async def add_wallet_money(
+    amount: float,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Add funds to user wallet."""
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be positive")
+    firebase_uid = current_user.get("uid")
+    user = await get_db_user(db, firebase_uid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    result = await db.execute(select(Wallet).filter(Wallet.user_id == user.id))
+    wallet = result.scalar_one_or_none()
+    if not wallet:
+        wallet = Wallet(user_id=user.id, balance=500.0 + amount, coins=120)
+        db.add(wallet)
+    else:
+        wallet.balance += amount
+        db.add(wallet)
+
+    transaction = WalletTransaction(
+        user_id=user.id,
+        title="Wallet Top-Up",
+        amount=amount,
+        transaction_type="credit"
+    )
+    db.add(transaction)
+    await db.commit()
+    await db.refresh(wallet)
+    return wallet
+
+@router.get("/wallet/transactions", response_model=List[WalletTransactionResponse])
+async def get_wallet_transactions(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get wallet transaction history."""
+    firebase_uid = current_user.get("uid")
+    user = await get_db_user(db, firebase_uid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    result = await db.execute(
+        select(WalletTransaction)
+        .filter(WalletTransaction.user_id == user.id)
+        .order_by(WalletTransaction.created_at.desc())
+    )
+    return result.scalars().all()
+
+@router.get("/referral", response_model=ReferralResponse)
+async def get_user_referral(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get user referral link and rewards stats."""
+    firebase_uid = current_user.get("uid")
+    user = await get_db_user(db, firebase_uid)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    referral_code = f"TURF{user.id:04d}"
+    result = await db.execute(select(Referral).filter(Referral.referrer_id == user.id))
+    referrals = result.scalars().all()
+
+    total_rewards = sum(r.reward_amount for r in referrals if r.status == "completed")
+    return ReferralResponse(
+        referral_code=referral_code,
+        total_referred=len(referrals),
+        total_rewards=total_rewards
+    )
+

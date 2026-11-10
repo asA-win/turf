@@ -12,6 +12,8 @@ class User(Base):
     full_name = Column(String)
     role = Column(String, default="user") # 'user' or 'admin'
     phone = Column(String, nullable=True)
+    hashed_password = Column(String, nullable=True)
+    is_verified = Column(Boolean, default=False)
 
 class Turf(Base):
     __tablename__ = "turfs"
@@ -200,4 +202,49 @@ class StockShare(Base):
     available_shares = Column(Integer, default=1000)
     
     turf = relationship("Turf")
+
+class OTPCode(Base):
+    __tablename__ = "otp_codes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    identifier = Column(String, index=True) # phone or email
+    code = Column(String, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime)
+    is_used = Column(Boolean, default=False)
+
+class Wallet(Base):
+    __tablename__ = "wallets"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    balance = Column(Float, default=500.0)
+    coins = Column(Integer, default=120)
+    
+    user = relationship("User")
+
+class WalletTransaction(Base):
+    __tablename__ = "wallet_transactions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    title = Column(String)
+    amount = Column(Float)
+    transaction_type = Column(String, default="credit") # 'credit' or 'debit'
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User")
+
+class Referral(Base):
+    __tablename__ = "referrals"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    referrer_id = Column(Integer, ForeignKey("users.id"))
+    referred_email = Column(String, nullable=True)
+    reward_amount = Column(Float, default=100.0)
+    status = Column(String, default="completed") # 'pending', 'completed'
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    referrer = relationship("User")
+
 

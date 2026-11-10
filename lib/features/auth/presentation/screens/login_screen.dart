@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
@@ -37,6 +38,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
         return;
       }
+      // Send real-time OTP before navigating
+      await ref.read(authControllerProvider.notifier).sendOtp(phone);
+      if (!mounted) return;
       // Navigate to OTP verification
       context.push('/otp-verification', extra: phone);
     } else {
@@ -107,6 +111,154 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           context.go('/home');
         }
       },
+    );
+  }
+
+  void _showForgotPasswordModal() {
+    final messenger = ScaffoldMessenger.of(context);
+    final emailPhoneCtrl = TextEditingController(text: _emailController.text.trim());
+    final codeCtrl = TextEditingController();
+    final newPassCtrl = TextEditingController();
+    int step = 1; // 1: enter identifier, 2: enter code & new password
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.cardDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 24,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                step == 1 ? 'Forgot Password' : 'Enter Verification Code',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                step == 1
+                    ? 'Enter your registered email or phone to receive a real-time recovery code.'
+                    : 'A verification code was sent to ${emailPhoneCtrl.text.trim()}. Enter it below along with your new password.',
+                style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              if (step == 1) ...[
+                TextField(
+                  controller: emailPhoneCtrl,
+                  style: GoogleFonts.poppins(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Email or Phone',
+                    prefixIcon: Icon(Icons.contact_mail_outlined, color: AppTheme.primaryGreen),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            final id = emailPhoneCtrl.text.trim();
+                            if (id.isEmpty) return;
+                            setModalState(() => isSubmitting = true);
+                            try {
+                              final dio = ref.read(dioClientProvider);
+                              await dio.post('/auth/forgot-password', data: {'identifier': id});
+                              setModalState(() {
+                                isSubmitting = false;
+                                step = 2;
+                              });
+                            } catch (e) {
+                              setModalState(() => isSubmitting = false);
+                              messenger.showSnackBar(
+                                SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.errorRed),
+                              );
+                            }
+                          },
+                    child: isSubmitting
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text('Send Recovery Code'),
+                  ),
+                ),
+              ] else ...[
+                TextField(
+                  controller: codeCtrl,
+                  keyboardType: TextInputType.number,
+                  style: GoogleFonts.poppins(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: '6-Digit Code',
+                    prefixIcon: Icon(Icons.pin, color: AppTheme.primaryGreen),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: newPassCtrl,
+                  obscureText: true,
+                  style: GoogleFonts.poppins(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'New Password',
+                    prefixIcon: Icon(Icons.lock, color: AppTheme.primaryGreen),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            final code = codeCtrl.text.trim();
+                            final newPass = newPassCtrl.text.trim();
+                            if (code.isEmpty || newPass.isEmpty) return;
+                            setModalState(() => isSubmitting = true);
+                            try {
+                              final dio = ref.read(dioClientProvider);
+                              await dio.post('/auth/reset-password', data: {
+                                'identifier': emailPhoneCtrl.text.trim(),
+                                'code': code,
+                                'new_password': newPass,
+                              });
+                              if (!ctx.mounted) return;
+                              Navigator.pop(ctx);
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('Password reset successfully! You can now login.'),
+                                  backgroundColor: AppTheme.primaryGreen,
+                                ),
+                              );
+                              _passwordController.text = newPass;
+                            } catch (e) {
+                              setModalState(() => isSubmitting = false);
+                              messenger.showSnackBar(
+                                SnackBar(content: Text('Reset failed: $e'), backgroundColor: AppTheme.errorRed),
+                              );
+                            }
+                          },
+                    child: isSubmitting
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text('Reset Password'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -287,6 +439,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: AppTheme.cardBorder),
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _showForgotPasswordModal,
+                    child: Text(
+                      'Forgot Password?',
+                      style: GoogleFonts.poppins(
+                        color: AppTheme.primaryGreen,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),

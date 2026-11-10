@@ -58,11 +58,11 @@ def test_websocket_user_session_relay():
         assert received["type"] == "session_active"
 
 def test_check_availability_endpoint():
-    client = TestClient(app)
-    # Check random email availability
-    res = client.get("/api/v1/users/check-availability?email=unique_player_999@example.com")
-    assert res.status_code == 200
-    assert res.json()["available"] is True
+    with TestClient(app) as client:
+        # Check random email availability
+        res = client.get("/api/v1/users/check-availability?email=unique_player_999@example.com")
+        assert res.status_code == 200
+        assert res.json()["available"] is True
 
 def test_websocket_booking_requests_relay():
     client = TestClient(app)

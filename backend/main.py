@@ -73,3 +73,7 @@ app.include_router(api_router, prefix="/api/v1")
 def root():
     return {"message": "Welcome to Turf App API"}
 
+@app.get("/health")
+def health():
+    return {"status": "ok", "app": "Turf App API"}
+

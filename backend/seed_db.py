@@ -7,8 +7,6 @@ from sqlalchemy.future import select
 async def seed_data():
     from app.db.session import engine, Base
     import app.db.models
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as session:
         # Check if turfs already exist

@@ -1,0 +1,112 @@
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/features/parking/presentation/screens/parking_screen.dart';
+import 'package:turf_app/features/admin/presentation/screens/live_booking_requests_screen.dart';
+import 'package:turf_app/features/booking/presentation/screens/my_bookings_screen.dart';
+import 'package:turf_app/features/home/presentation/screens/active_matches_screen.dart';
+
+class MockAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(RequestOptions options, Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+    return ResponseBody.fromString('[]', 200, headers: {
+      Headers.contentTypeHeader: [Headers.jsonContentType],
+    });
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+Dio createMockDio() {
+  final dio = Dio(
+    BaseOptions(
+      connectTimeout: null,
+      receiveTimeout: null,
+      sendTimeout: null,
+    ),
+  );
+  dio.httpClientAdapter = MockAdapter();
+  return dio;
+}
+
+void main() {
+  testWidgets('ParkingScreen renders with IOT LIVE status badge', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dioClientProvider.overrideWith((ref) => createMockDio()),
+        ],
+        child: const MaterialApp(
+          home: ParkingScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Smart Parking'), findsOneWidget);
+    expect(find.text('IOT LIVE'), findsOneWidget);
+    expect(find.text('Reserve your slot in advance'), findsOneWidget);
+    expect(find.text('Car'), findsOneWidget);
+    expect(find.text('Bike'), findsOneWidget);
+    expect(find.text('EV'), findsOneWidget);
+  });
+
+  testWidgets('LiveBookingRequestsScreen renders with LIVE SYNC and tabs', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dioClientProvider.overrideWith((ref) => createMockDio()),
+        ],
+        child: const MaterialApp(
+          home: LiveBookingRequestsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Booking Requests'), findsOneWidget);
+    expect(find.text('LIVE SYNC'), findsOneWidget);
+    expect(find.textContaining('Pending'), findsOneWidget);
+    expect(find.textContaining('Confirmed'), findsOneWidget);
+    expect(find.textContaining('Declined'), findsOneWidget);
+  });
+
+  testWidgets('MyBookingsScreen renders with LIVE status badge and tabs', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dioClientProvider.overrideWith((ref) => createMockDio()),
+        ],
+        child: const MaterialApp(
+          home: MyBookingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('My Bookings'), findsOneWidget);
+    expect(find.text('LIVE'), findsOneWidget);
+    expect(find.text('Upcoming'), findsOneWidget);
+    expect(find.text('Past'), findsOneWidget);
+  });
+
+  testWidgets('ActiveMatchesScreen renders with real-time sports filter and matches', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: ActiveMatchesScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Active Matches'), findsOneWidget);
+    expect(find.text('Football'), findsWidgets);
+    expect(find.text('Cricket'), findsWidgets);
+    expect(find.text('Turf Titans'), findsOneWidget);
+  });
+}

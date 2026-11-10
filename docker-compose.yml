@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./turf.db
+      - SECRET_KEY=supersecretkey_turf_app_2026
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/turf.db:/app/turf.db
+    restart: always

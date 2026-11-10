@@ -1,0 +1,49 @@
+name: turf_app
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.3.5
+  go_router: ^14.7.2
+  dio: ^5.9.2
+  json_annotation: ^4.9.0
+  shared_preferences: ^2.5.3
+  flutter_secure_storage: ^10.0.0
+  google_fonts: ^6.3.2
+  flutter_svg: ^2.2.2
+  firebase_core: ^4.5.0
+  firebase_auth: ^6.2.0
+  cached_network_image: ^3.4.1
+  equatable: ^2.0.8
+  google_sign_in: ^6.2.1
+  intl: ^0.20.2
+  logger: ^2.6.2
+  fpdart: ^1.2.0
+  geolocator: ^13.0.2
+  geocoding: ^3.0.0
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  firebase_messaging: ^16.1.2
+  image_picker: ^1.2.1
+  shimmer: ^3.0.0
+  url_launcher: ^6.3.2
+  web_socket_channel: ^3.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  build_runner: ^2.4.14
+  riverpod_generator: ^2.6.3
+  json_serializable: ^6.9.0
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

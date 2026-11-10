@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+sqlalchemy
+asyncpg
+psycopg2-binary
+aiosqlite
+firebase-admin
+pydantic
+pydantic-settings
+redis
+alembic
+cloudinary
+python-multipart
+

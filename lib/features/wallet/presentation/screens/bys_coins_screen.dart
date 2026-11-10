@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/wallet/presentation/controllers/wallet_provider.dart';
 
-class BysCoinsScreen extends StatelessWidget {
+class BysCoinsScreen extends ConsumerWidget {
   const BysCoinsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final wallet = ref.watch(walletProvider);
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
@@ -39,7 +43,10 @@ class BysCoinsScreen extends StatelessWidget {
                       children: [
                         const Icon(Icons.monetization_on, color: Colors.amber, size: 36),
                         const SizedBox(width: 8),
-                        Text('1,250', style: GoogleFonts.poppins(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white)),
+                        Text(
+                          '${wallet.coins}',
+                          style: GoogleFonts.poppins(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -55,9 +62,18 @@ class BysCoinsScreen extends StatelessWidget {
               _earnItem('Write a Review', '+25 Coins', Icons.rate_review),
               _earnItem('Play Streak (3 Days)', '+75 Coins', Icons.local_fire_department),
               const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => context.push('/store'),
-                child: const Text('View Rewards'),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () => context.push('/offers-promotions'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryGreen,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text('Redeem Rewards & Offers', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+                ),
               ),
               const SizedBox(height: 12),
               Center(
@@ -75,16 +91,22 @@ class BysCoinsScreen extends StatelessWidget {
 
   Widget _earnItem(String title, String reward, IconData icon) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: AppTheme.cardDark,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppTheme.cardBorder),
       ),
-      child: ListTile(
-        leading: Icon(icon, color: AppTheme.primaryGreen),
-        title: Text(title, style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-        trailing: Text(reward, style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 13)),
+      child: Row(
+        children: [
+          Icon(icon, color: AppTheme.primaryGreen, size: 22),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(title, style: GoogleFonts.poppins(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+          ),
+          Text(reward, style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 13)),
+        ],
       ),
     );
   }

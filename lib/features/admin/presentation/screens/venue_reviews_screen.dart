@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/turf_details/data/repositories/review_repository.dart';
 
-class VenueReviewsScreen extends StatelessWidget {
+class VenueReviewsScreen extends ConsumerWidget {
   const VenueReviewsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reviewsAsync = ref.watch(fetchTurfReviewsProvider(1));
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
@@ -18,32 +22,65 @@ class VenueReviewsScreen extends StatelessWidget {
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        child: reviewsAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen)),
+          error: (err, stack) => Center(
+            child: Text('Failed to load venue reviews: $err', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
+          ),
+          data: (reviews) {
+            final total = reviews.length;
+            final double avgRating = total > 0
+                ? reviews.map((r) => r.rating).reduce((a, b) => a + b) / total
+                : 0.0;
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('4.6', style: GoogleFonts.poppins(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white)),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.star, color: Colors.amber, size: 28),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
                     children: [
-                      Text('Excellent', style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 14)),
-                      Text('512 Reviews', style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 11)),
+                      Text(
+                        total > 0 ? avgRating.toStringAsFixed(1) : 'New',
+                        style: GoogleFonts.poppins(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.star, color: Colors.amber, size: 28),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            total > 0 ? (avgRating >= 4.0 ? 'Excellent' : 'Good') : 'No Reviews Yet',
+                            style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          Text(
+                            '$total ${total == 1 ? "Review" : "Reviews"}',
+                            style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 11),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
+                  const SizedBox(height: 24),
+                  if (reviews.isEmpty)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32.0),
+                        child: Text('No reviews for this venue yet.', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
+                      ),
+                    )
+                  else
+                    ...reviews.map((r) {
+                      final name = (r.user.fullName != null && r.user.fullName!.isNotEmpty)
+                          ? r.user.fullName!
+                          : (r.user.email != null && r.user.email!.isNotEmpty ? r.user.email!.split('@').first : 'Player');
+                      return _reviewCard(name, '${r.rating}.0', r.comment ?? 'Great venue experience!');
+                    }),
                 ],
               ),
-              const SizedBox(height: 24),
-              _reviewCard('Rahul Sharma', '5.0', 'Amazing turf and great experience. Well maintained!'),
-              _reviewCard('Vignesh K', '4.0', 'Good ground and lighting.'),
-              _reviewCard('Arun Prasad', '5.0', 'Best turf in this area.'),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -64,18 +101,18 @@ class VenueReviewsScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(name, style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(name, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
               Row(
                 children: [
                   const Icon(Icons.star, color: Colors.amber, size: 14),
                   const SizedBox(width: 4),
-                  Text(rating, style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                  Text(rating, style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(comment, style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12)),
+          const SizedBox(height: 8),
+          Text(comment, style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 13)),
         ],
       ),
     );

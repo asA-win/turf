@@ -31,7 +31,7 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
   Future<void> _fetchServerPosts() async {
     try {
       final dio = ref.read(apiClientProvider);
-      final res = await dio.get('/api/v1/community/');
+      final res = await dio.get('/community/');
       if (res.statusCode == 200 && res.data is List && (res.data as List).isNotEmpty) {
         final serverPosts = (res.data as List).map((e) {
           final m = Map<String, dynamic>.from(e as Map);
@@ -322,7 +322,7 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                     // REST call to persist
                     try {
                       final dio = ref.read(apiClientProvider);
-                      await dio.post('/api/v1/community/', data: {
+                      await dio.post('/community/', data: {
                         'content': text,
                         'image_url': 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=800',
                       });
@@ -1002,7 +1002,7 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                         if (newLiked) {
                           try {
                             final dio = ref.read(apiClientProvider);
-                            await dio.post('/api/v1/community/${post['id']}/like');
+                            await dio.post('/community/${post['id']}/like');
                           } catch (e) {
                             debugPrint('Like REST fallback: $e');
                           }

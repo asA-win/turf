@@ -1,27 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/turf_details/data/repositories/turf_repository.dart';
 
-class AmenitiesScreen extends StatelessWidget {
+class AmenitiesScreen extends ConsumerWidget {
   final String turfId;
   const AmenitiesScreen({super.key, required this.turfId});
 
+  IconData _iconForAmenity(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('light')) return Icons.lightbulb_outline;
+    if (lower.contains('park')) return Icons.local_parking;
+    if (lower.contains('rest') || lower.contains('wash')) return Icons.wc;
+    if (lower.contains('chang') || lower.contains('room')) return Icons.checkroom;
+    if (lower.contains('cafe') || lower.contains('canteen')) return Icons.local_cafe;
+    if (lower.contains('water')) return Icons.water_drop;
+    if (lower.contains('aid') || lower.contains('medical')) return Icons.medical_services;
+    if (lower.contains('rental') || lower.contains('ball')) return Icons.sports_soccer;
+    if (lower.contains('wifi')) return Icons.wifi;
+    if (lower.contains('seat') || lower.contains('stand')) return Icons.event_seat;
+    if (lower.contains('music') || lower.contains('audio')) return Icons.speaker;
+    return Icons.check_circle_outline;
+  }
+
   @override
-  Widget build(BuildContext context) {
-    final amenities = [
-      {'name': 'Floodlights', 'status': 'Yes', 'icon': Icons.lightbulb_outline},
-      {'name': 'Parking', 'status': 'Available', 'icon': Icons.local_parking},
-      {'name': 'Restroom', 'status': 'Yes', 'icon': Icons.wc},
-      {'name': 'Changing Room', 'status': 'Yes', 'icon': Icons.checkroom},
-      {'name': 'Cafeteria', 'status': 'Yes', 'icon': Icons.local_cafe},
-      {'name': 'Water', 'status': 'Yes', 'icon': Icons.water_drop},
-      {'name': 'First Aid', 'status': 'Yes', 'icon': Icons.medical_services},
-      {'name': 'Equipment Rental', 'status': 'Yes', 'icon': Icons.sports_soccer},
-      {'name': 'Wi-Fi', 'status': 'Available', 'icon': Icons.wifi},
-      {'name': 'Spectator Seating', 'status': 'Yes', 'icon': Icons.event_seat},
-      {'name': 'Music System', 'status': 'Yes', 'icon': Icons.speaker},
-    ];
+  Widget build(BuildContext context, WidgetRef ref) {
+    final numericTurfId = int.tryParse(turfId) ?? 1;
+    final turfAsync = ref.watch(fetchTurfByIdProvider(numericTurfId));
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
@@ -33,50 +40,58 @@ class AmenitiesScreen extends StatelessWidget {
         ),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(20),
-                itemCount: amenities.length,
-                itemBuilder: (context, index) {
-                  final item = amenities[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.cardDark,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.cardBorder),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(item['icon'] as IconData, color: AppTheme.primaryGreen, size: 24),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Text(
-                            item['name'] as String,
-                            style: GoogleFonts.poppins(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
-                          ),
+        child: turfAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen)),
+          error: (err, stack) => Center(
+            child: Text('Failed to load amenities: $err', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
+          ),
+          data: (turf) {
+            final List<String> amenities = (turf.amenities != null && turf.amenities!.trim().isNotEmpty)
+                ? turf.amenities!.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
+                : ['Floodlights', 'Parking', 'Restroom', 'Changing Room', 'Drinking Water', 'First Aid'];
+
+            return ListView.builder(
+              padding: const EdgeInsets.all(20),
+              itemCount: amenities.length,
+              itemBuilder: (context, index) {
+                final amenityName = amenities[index];
+                final icon = _iconForAmenity(amenityName);
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppTheme.cardDark,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.cardBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(icon, color: AppTheme.primaryGreen, size: 24),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          amenityName,
+                          style: GoogleFonts.poppins(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
                         ),
-                        Text(
-                          item['status'] as String,
-                          style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 13),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryGreen.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: ElevatedButton(
-                onPressed: () => context.push('/slot-selection/$turfId'),
-                child: const Text('See Available Slots'),
-              ),
-            ),
-          ],
+                        child: Text(
+                          'Available',
+                          style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
         ),
       ),
     );

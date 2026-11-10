@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/widgets/bys_bottom_nav_bar.dart';
 import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
+import 'package:turf_app/features/wallet/presentation/controllers/wallet_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -20,10 +21,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final user = userAsync.valueOrNull;
     final userName = (user?.fullName != null && user!.fullName!.trim().isNotEmpty)
         ? user.fullName!.trim()
-        : 'John Doe';
+        : (user?.email != null && user!.email!.trim().isNotEmpty ? user.email!.split('@').first : 'Player');
     final userRole = (user?.role != null && user!.role!.trim().isNotEmpty)
-        ? user.role!.trim()
-        : 'Striker • Jersey #7';
+        ? (user.role == 'player' ? 'Player' : user.role!.toUpperCase())
+        : 'Player';
+    final wallet = ref.watch(walletProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
@@ -231,7 +233,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   ),
                                   const SizedBox(height: 5),
                                   Text(
-                                    '₹2,450.00',
+                                    '₹${wallet.balance.toStringAsFixed(2)}',
                                     style: GoogleFonts.poppins(
                                       fontSize: 15.5,
                                       fontWeight: FontWeight.bold,

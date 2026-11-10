@@ -19,38 +19,7 @@ class _LiveBookingRequestsScreenState extends ConsumerState<LiveBookingRequestsS
   StreamSubscription<Map<String, dynamic>>? _sub;
   bool _isLoading = true;
 
-  final List<Map<String, dynamic>> _requests = [
-    {
-      'id': 1001,
-      'name': 'Rahul Sharma',
-      'slot': '07:00 PM - 08:00 PM',
-      'sport': 'Football (5v5)',
-      'price': '₹900',
-      'players': '6 Players',
-      'turf_name': 'Greenfield Arena',
-      'status': 'pending',
-    },
-    {
-      'id': 1002,
-      'name': 'Vignesh K',
-      'slot': '08:00 PM - 09:00 PM',
-      'sport': 'Football (6v6)',
-      'price': '₹1,200',
-      'players': '8 Players',
-      'turf_name': 'Play Arena',
-      'status': 'pending',
-    },
-    {
-      'id': 1003,
-      'name': 'Manoj George',
-      'slot': 'Tomorrow • 06:00 PM - 07:00 PM',
-      'sport': 'Football (6v6)',
-      'price': '₹900',
-      'players': '6 Players',
-      'turf_name': 'City Turf Ground',
-      'status': 'confirmed',
-    },
-  ];
+  final List<Map<String, dynamic>> _requests = [];
 
   @override
   void initState() {
@@ -63,7 +32,7 @@ class _LiveBookingRequestsScreenState extends ConsumerState<LiveBookingRequestsS
   Future<void> _loadInitialRequests() async {
     try {
       final dio = ref.read(apiClientProvider);
-      final res = await dio.get('/api/v1/bookings/requests');
+      final res = await dio.get('/bookings/requests');
       if (res.statusCode == 200 && res.data is List && (res.data as List).isNotEmpty) {
         final serverRequests = (res.data as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         if (mounted) {
@@ -172,7 +141,7 @@ class _LiveBookingRequestsScreenState extends ConsumerState<LiveBookingRequestsS
     // REST call
     try {
       final dio = ref.read(apiClientProvider);
-      await dio.post('/api/v1/bookings/$bookingId/respond', data: {'action': action});
+      await dio.post('/bookings/$bookingId/respond', data: {'action': action});
     } catch (e) {
       debugPrint('Booking respond REST fallback: $e');
     }

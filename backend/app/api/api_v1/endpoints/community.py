@@ -16,9 +16,13 @@ class PostCreate(BaseModel):
 
 @router.get("/")
 async def get_community_posts(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(CommunityPost))
-    posts = result.scalars().all()
-    if not posts:
+    result = await db.execute(
+        select(CommunityPost, User)
+        .outerjoin(User, CommunityPost.user_id == User.id)
+        .order_by(CommunityPost.id.desc())
+    )
+    rows = result.all()
+    if not rows:
         default_post = CommunityPost(
             content="Great match last night! ⚽🔥 What a comeback victory!",
             image_url="https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=800",
@@ -27,19 +31,26 @@ async def get_community_posts(db: AsyncSession = Depends(get_db)):
         )
         db.add(default_post)
         await db.commit()
-        result = await db.execute(select(CommunityPost))
-        posts = result.scalars().all()
+        result = await db.execute(
+            select(CommunityPost, User)
+            .outerjoin(User, CommunityPost.user_id == User.id)
+            .order_by(CommunityPost.id.desc())
+        )
+        rows = result.all()
 
     res = []
-    for p in posts:
+    for post, user in rows:
+        author = "Player"
+        if user:
+            author = user.full_name or user.username or "Player"
         res.append({
-            "id": p.id,
-            "author": "Alex Johnson",
-            "content": p.content,
-            "image_url": p.image_url,
-            "likes_count": p.likes_count,
-            "comments_count": p.comments_count,
-            "created_at": p.created_at.strftime("%Y-%m-%d %H:%M") if p.created_at else "Just now"
+            "id": post.id,
+            "author": author,
+            "content": post.content,
+            "image_url": post.image_url,
+            "likes_count": post.likes_count,
+            "comments_count": post.comments_count,
+            "created_at": post.created_at.strftime("%Y-%m-%d %H:%M") if post.created_at else "Just now"
         })
     return res
 
@@ -49,7 +60,9 @@ async def create_post(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
+    user_id = current_user.get("user_id") if isinstance(current_user, dict) else None
     post = CommunityPost(
+        user_id=user_id,
         content=post_in.content,
         image_url=post_in.image_url,
         likes_count=0,

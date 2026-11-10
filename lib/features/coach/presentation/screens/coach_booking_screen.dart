@@ -1,73 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 
-class CoachBookingScreen extends StatefulWidget {
+final fetchCoachesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final dio = ref.watch(dioClientProvider);
+  final response = await dio.get('/coaches/');
+  return (response.data as List).map((e) => Map<String, dynamic>.from(e)).toList();
+});
+
+class CoachBookingScreen extends ConsumerStatefulWidget {
   const CoachBookingScreen({super.key});
 
   @override
-  State<CoachBookingScreen> createState() => _CoachBookingScreenState();
+  ConsumerState<CoachBookingScreen> createState() => _CoachBookingScreenState();
 }
 
-class _CoachBookingScreenState extends State<CoachBookingScreen> {
+class _CoachBookingScreenState extends ConsumerState<CoachBookingScreen> {
   String searchQuery = '';
   String selectedCategory = 'All';
 
-  final List<Map<String, dynamic>> coaches = [
-    {
-      'name': 'Rahul Sharma',
-      'role': 'Football Head Coach',
-      'category': 'Football',
-      'rating': '4.8',
-      'reviews': 86,
-      'price': '₹1,500/session',
-      'experience': '8 years exp • UEFA B',
-      'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-    },
-    {
-      'name': 'David Martinez',
-      'role': 'AFC Certified Tactical Coach',
-      'category': 'Football',
-      'rating': '4.7',
-      'reviews': 54,
-      'price': '₹1,350/session',
-      'experience': '6 years exp • AFC Pro',
-      'avatar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
-    },
-    {
-      'name': 'Vikram Singh',
-      'role': 'Cricket Bowling & Tactics',
-      'category': 'Cricket',
-      'rating': '4.9',
-      'reviews': 112,
-      'price': '₹1,200/session',
-      'experience': '10 years exp • BCCI L2',
-      'avatar': 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=100',
-    },
-    {
-      'name': 'Ananya Roy',
-      'role': 'Tennis & Badminton Pro',
-      'category': 'Racquet',
-      'rating': '4.8',
-      'reviews': 67,
-      'price': '₹1,100/session',
-      'experience': '5 years exp • Certified',
-      'avatar': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
-    },
-    {
-      'name': 'Marcus Vance',
-      'role': 'Athletic Fitness & Agility',
-      'category': 'Fitness',
-      'rating': '4.6',
-      'reviews': 43,
-      'price': '₹900/session',
-      'experience': '4 years exp • CSCS',
-      'avatar': 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100',
-    },
-  ];
-
   void _showBookingModal(Map<String, dynamic> coach) {
     String selectedSlot = 'Today • 06:00 PM';
+    final coachName = coach['full_name'] ?? coach['name'] ?? 'Coach';
+    final coachRole = coach['role'] ?? 'Specialist Coach';
+    final coachPrice = coach['price_per_session'] != null 
+        ? '₹${(coach['price_per_session'] as num).toInt()}/session' 
+        : (coach['price'] ?? '₹1,200/session');
+    final avatar = coach['image_url'] ?? coach['avatar'] ?? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100';
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.cardDark,
@@ -89,17 +51,18 @@ class _CoachBookingScreenState extends State<CoachBookingScreen> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  CircleAvatar(radius: 24, backgroundImage: NetworkImage(coach['avatar'])),
+                  CircleAvatar(radius: 24, backgroundImage: NetworkImage(avatar)),
                   const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(coach['name'], style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textWhite)),
-                      Text(coach['role'], style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textGrey)),
-                    ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(coachName, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textWhite)),
+                        Text(coachRole, style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textGrey)),
+                      ],
+                    ),
                   ),
-                  const Spacer(),
-                  Text(coach['price'], style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen)),
+                  Text(coachPrice, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen)),
                 ],
               ),
               const SizedBox(height: 20),
@@ -139,7 +102,7 @@ class _CoachBookingScreenState extends State<CoachBookingScreen> {
                     Navigator.pop(ctx);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Session booked with ${coach['name']} for $selectedSlot!'),
+                        content: Text('Session booked with $coachName for $selectedSlot!'),
                         backgroundColor: AppTheme.primaryGreen,
                       ),
                     );
@@ -161,12 +124,7 @@ class _CoachBookingScreenState extends State<CoachBookingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = coaches.where((c) {
-      final matchesSearch = c['name'].toLowerCase().contains(searchQuery.toLowerCase()) ||
-          c['role'].toLowerCase().contains(searchQuery.toLowerCase());
-      final matchesCategory = selectedCategory == 'All' || c['category'] == selectedCategory;
-      return matchesSearch && matchesCategory;
-    }).toList();
+    final coachesAsync = ref.watch(fetchCoachesProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
@@ -223,87 +181,118 @@ class _CoachBookingScreenState extends State<CoachBookingScreen> {
 
             // Coaches List
             Expanded(
-              child: filtered.isEmpty
-                  ? Center(child: Text('No coaches found matching "$searchQuery"', style: GoogleFonts.poppins(color: AppTheme.textGrey)))
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final coach = filtered[index];
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 14),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppTheme.cardDark,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppTheme.cardBorder),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 28,
-                                    backgroundImage: NetworkImage(coach['avatar']!),
-                                  ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          coach['name']!,
-                                          style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
-                                        ),
-                                        Text(
-                                          coach['role']!,
-                                          style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textGrey),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          children: [
-                                            const Icon(Icons.star, color: Colors.amber, size: 14),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              '${coach['rating']} (${coach['reviews']} reviews)',
-                                              style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Text(
-                                    coach['price']!,
-                                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Text(coach['experience']!, style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textMuted)),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 42,
-                                child: ElevatedButton(
-                                  onPressed: () => _showBookingModal(coach),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.primaryGreen,
-                                    foregroundColor: Colors.black,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                  ),
-                                  child: Text(
-                                    'Book a Session',
-                                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.bold),
+              child: coachesAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen)),
+                error: (err, stack) => Center(
+                  child: Text('Failed to load coaches: $err', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
+                ),
+                data: (allCoaches) {
+                  final filtered = allCoaches.where((c) {
+                    final name = (c['full_name'] ?? c['name'] ?? '').toString().toLowerCase();
+                    final role = (c['role'] ?? '').toString().toLowerCase();
+                    final cat = (c['category'] ?? (role.contains('cricket') ? 'Cricket' : role.contains('fitness') ? 'Fitness' : role.contains('tennis') || role.contains('badminton') ? 'Racquet' : 'Football')).toString();
+                    
+                    final matchesSearch = name.contains(searchQuery.toLowerCase()) || role.contains(searchQuery.toLowerCase());
+                    final matchesCategory = selectedCategory == 'All' || cat.toLowerCase() == selectedCategory.toLowerCase();
+                    return matchesSearch && matchesCategory;
+                  }).toList();
+
+                  if (filtered.isEmpty) {
+                    return Center(
+                      child: Text('No coaches found matching "$searchQuery"', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final coach = filtered[index];
+                      final name = coach['full_name'] ?? coach['name'] ?? 'Coach';
+                      final role = coach['role'] ?? 'Specialist Coach';
+                      final rating = coach['rating']?.toString() ?? '4.8';
+                      final price = coach['price_per_session'] != null
+                          ? '₹${(coach['price_per_session'] as num).toInt()}/session'
+                          : (coach['price'] ?? '₹1,200/session');
+                      final avatar = coach['image_url'] ?? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100';
+                      final exp = coach['experience'] ?? 'Certified Professional Coach';
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 14),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardDark,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppTheme.cardBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 28,
+                                  backgroundImage: NetworkImage(avatar),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        name,
+                                        style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
+                                      ),
+                                      Text(
+                                        role,
+                                        style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textGrey),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.star, color: Colors.amber, size: 14),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            rating,
+                                            style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
                                 ),
+                                Text(
+                                  price,
+                                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(exp, style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textMuted)),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 42,
+                              child: ElevatedButton(
+                                onPressed: () => _showBookingModal(coach),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primaryGreen,
+                                  foregroundColor: Colors.black,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                child: Text(
+                                  'Book a Session',
+                                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.bold),
+                                ),
                               ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),

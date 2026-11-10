@@ -18,8 +18,6 @@ async def read_offers(
     if turf_id:
         # Get offers specific to this turf OR global offers (turf_id is null)
         query = query.filter((Offer.turf_id == turf_id) | (Offer.turf_id == None))
-    else:
-        query = query.filter(Offer.turf_id == None)
         
     result = await db.execute(query)
     return result.scalars().all()

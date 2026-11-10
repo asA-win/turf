@@ -22,8 +22,11 @@ async def get_rental_items(db: AsyncSession = Depends(get_db)):
         default_items = [
             RentalItem(name="Match Football", price_per_day=100.0, category="Football"),
             RentalItem(name="Goalkeeper Gloves", price_per_day=150.0, category="Football"),
-            RentalItem(name="Football Shoes", price_per_day=200.0, category="Football"),
-            RentalItem(name="Training Bibs (Set of 10)", price_per_day=50.0, category="Football"),
+            RentalItem(name="Football Boots (Size 8-10)", price_per_day=200.0, category="Football"),
+            RentalItem(name="Training Bibs (Set of 10)", price_per_day=80.0, category="Football"),
+            RentalItem(name="English Willow Cricket Bat", price_per_day=250.0, category="Cricket"),
+            RentalItem(name="Cricket Batting Gloves & Pads", price_per_day=180.0, category="Cricket"),
+            RentalItem(name="Badminton Pro Racket & Shuttles", price_per_day=120.0, category="Badminton"),
         ]
         for item in default_items:
             db.add(item)

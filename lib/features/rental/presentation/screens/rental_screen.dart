@@ -1,19 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 
-class EquipmentRentalScreen extends StatelessWidget {
+final fetchRentalsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final dio = ref.watch(dioClientProvider);
+  final response = await dio.get('/rentals/');
+  return (response.data as List).map((e) => Map<String, dynamic>.from(e)).toList();
+});
+
+class EquipmentRentalScreen extends ConsumerStatefulWidget {
   const EquipmentRentalScreen({super.key});
 
-  final List<Map<String, dynamic>> items = const [
-    {'name': 'Match Football', 'price': '₹100/day', 'icon': Icons.sports_soccer},
-    {'name': 'Goalkeeper Gloves', 'price': '₹150/day', 'icon': Icons.front_hand},
-    {'name': 'Football Shoes', 'price': '₹200/day', 'icon': Icons.roller_skating},
-    {'name': 'Training Bibs (Set of 10)', 'price': '₹50/day', 'icon': Icons.checkroom},
-  ];
+  @override
+  ConsumerState<EquipmentRentalScreen> createState() => _EquipmentRentalScreenState();
+}
+
+class _EquipmentRentalScreenState extends ConsumerState<EquipmentRentalScreen> {
+  String _searchQuery = '';
+
+  IconData _getIconForName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('ball')) return Icons.sports_soccer;
+    if (lower.contains('glove')) return Icons.front_hand;
+    if (lower.contains('shoe') || lower.contains('boot')) return Icons.roller_skating;
+    if (lower.contains('bib') || lower.contains('jersey')) return Icons.checkroom;
+    if (lower.contains('bat') || lower.contains('cricket')) return Icons.sports_cricket;
+    if (lower.contains('racket') || lower.contains('badminton')) return Icons.sports_tennis;
+    return Icons.fitness_center;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final rentalsAsync = ref.watch(fetchRentalsProvider);
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
@@ -28,6 +49,7 @@ class EquipmentRentalScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: TextField(
+                onChanged: (val) => setState(() => _searchQuery = val),
                 style: GoogleFonts.poppins(color: AppTheme.textWhite),
                 decoration: InputDecoration(
                   hintText: 'Search equipment...',
@@ -37,73 +59,101 @@ class EquipmentRentalScreen extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 14,
-                  mainAxisSpacing: 14,
-                  childAspectRatio: 0.85,
+              child: rentalsAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen)),
+                error: (err, stack) => Center(
+                  child: Text('Failed to load rentals: $err', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
                 ),
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  return Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppTheme.cardDark,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppTheme.cardBorder),
+                data: (items) {
+                  final filtered = items.where((i) {
+                    final name = (i['name'] ?? '').toString().toLowerCase();
+                    return name.contains(_searchQuery.toLowerCase());
+                  }).toList();
+
+                  if (filtered.isEmpty) {
+                    return Center(
+                      child: Text('No rental equipment available.', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
+                    );
+                  }
+
+                  return GridView.builder(
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 14,
+                      mainAxisSpacing: 14,
+                      childAspectRatio: 0.85,
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: const BoxDecoration(
-                            color: AppTheme.surfaceDark,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(item['icon'] as IconData, color: AppTheme.primaryGreen, size: 36),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final item = filtered[index];
+                      final name = item['name']?.toString() ?? 'Equipment';
+                      final price = item['price_per_day'] != null
+                          ? '₹${(item['price_per_day'] as num).toInt()}/day'
+                          : '₹100/day';
+                      final icon = _getIconForName(name);
+
+                      return Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardDark,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppTheme.cardBorder),
                         ),
-                        Column(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              item['name'],
-                              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: const BoxDecoration(
+                                color: AppTheme.surfaceDark,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(icon, color: AppTheme.primaryGreen, size: 36),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              item['price'],
-                              style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+                            Column(
+                              children: [
+                                Text(
+                                  name,
+                                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  price,
+                                  style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 36,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('$name booked for rent at $price!'),
+                                      backgroundColor: AppTheme.primaryGreen,
+                                    ),
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primaryGreen,
+                                  foregroundColor: Colors.black,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                child: Text(
+                                  'Rent Now',
+                                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 36,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('${item['name']} added to rental!')),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.primaryGreen,
-                              foregroundColor: Colors.black,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                            child: Text(
-                              'Rent Now',
-                              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               ),

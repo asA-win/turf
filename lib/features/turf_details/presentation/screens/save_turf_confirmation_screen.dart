@@ -5,7 +5,7 @@ import 'package:turf_app/core/theme/app_theme.dart';
 
 class SaveTurfConfirmationScreen extends StatelessWidget {
   final String turfName;
-  const SaveTurfConfirmationScreen({super.key, this.turfName = 'Green Field Arena'});
+  const SaveTurfConfirmationScreen({super.key, this.turfName = 'Turf'});
 
   @override
   Widget build(BuildContext context) {

@@ -202,8 +202,8 @@ async def get_booking_requests(
             slot_str = f"{slot.start_time.strftime('%I:%M %p')} - {slot.end_time.strftime('%I:%M %p')}"
         requests.append({
             "id": booking.id,
-            "name": user.full_name or user.email if user else "Rahul Sharma",
-            "turf_name": turf.name if turf else "Greenfield Arena",
+            "name": user.full_name or user.email if user else "Player",
+            "turf_name": turf.name if turf else "Turf Arena",
             "turf_id": booking.turf_id,
             "slot_id": booking.slot_id,
             "slot": slot_str,

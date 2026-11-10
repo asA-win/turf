@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 
 class AiSlotRecommendationScreen extends StatefulWidget {
@@ -13,41 +14,50 @@ class AiSlotRecommendationScreen extends StatefulWidget {
 class _AiSlotRecommendationScreenState extends State<AiSlotRecommendationScreen> {
   int _selectedSlotIndex = 0;
 
-  final List<Map<String, dynamic>> _slots = [
-    {
-      'isBestMatch': true,
-      'day': '24',
-      'month': 'May',
-      'time': '6:00 PM - 7:00 PM',
-      'demand': 'Low Demand',
-      'weather': 'Great Weather',
-      'activity': 'High Player Activity',
-      'playersOnline': '8-10 Players online',
-      'price': '₹1,200',
-    },
-    {
-      'isBestMatch': false,
-      'day': '24',
-      'month': 'May',
-      'time': '7:00 PM - 8:00 PM',
-      'demand': 'Medium Demand',
-      'weather': 'Good Weather',
-      'activity': 'High Player Activity',
-      'playersOnline': '6-8 Players online',
-      'price': '₹1,200',
-    },
-    {
-      'isBestMatch': false,
-      'day': '24',
-      'month': 'May',
-      'time': '5:00 PM - 6:00 PM',
-      'demand': 'Low Demand',
-      'weather': 'Good Weather',
-      'activity': 'Medium Player Activity',
-      'playersOnline': '4-6 Players online',
-      'price': '₹1,000',
-    },
-  ];
+  List<Map<String, dynamic>> get _slots {
+    final now = DateTime.now();
+    final todayDay = now.day.toString();
+    final todayMonth = DateFormat('MMM').format(now);
+    final tomorrow = now.add(const Duration(days: 1));
+    final tomorrowDay = tomorrow.day.toString();
+    final tomorrowMonth = DateFormat('MMM').format(tomorrow);
+
+    return [
+      {
+        'isBestMatch': true,
+        'day': todayDay,
+        'month': todayMonth,
+        'time': '6:00 PM - 7:00 PM',
+        'demand': 'Low Demand',
+        'weather': 'Great Weather',
+        'activity': 'High Player Activity',
+        'playersOnline': '8-10 Players online',
+        'price': '₹1,200',
+      },
+      {
+        'isBestMatch': false,
+        'day': todayDay,
+        'month': todayMonth,
+        'time': '7:00 PM - 8:00 PM',
+        'demand': 'Medium Demand',
+        'weather': 'Good Weather',
+        'activity': 'High Player Activity',
+        'playersOnline': '6-8 Players online',
+        'price': '₹1,200',
+      },
+      {
+        'isBestMatch': false,
+        'day': tomorrowDay,
+        'month': tomorrowMonth,
+        'time': '5:00 PM - 6:00 PM',
+        'demand': 'Low Demand',
+        'weather': 'Good Weather',
+        'activity': 'Medium Player Activity',
+        'playersOnline': '4-6 Players online',
+        'price': '₹1,000',
+      },
+    ];
+  }
 
   final List<Map<String, dynamic>> _factors = [
     {'name': 'Weather\nConditions', 'icon': Icons.wb_sunny_outlined},

@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/turf_details/data/repositories/offer_repository.dart';
+import 'package:turf_app/features/turf_details/domain/models/offer.dart';
 
-class OffersPromotionsScreen extends StatefulWidget {
+class OffersPromotionsScreen extends ConsumerStatefulWidget {
   const OffersPromotionsScreen({super.key});
 
   @override
-  State<OffersPromotionsScreen> createState() => _OffersPromotionsScreenState();
+  ConsumerState<OffersPromotionsScreen> createState() => _OffersPromotionsScreenState();
 }
 
-class _OffersPromotionsScreenState extends State<OffersPromotionsScreen> with SingleTickerProviderStateMixin {
+class _OffersPromotionsScreenState extends ConsumerState<OffersPromotionsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -20,7 +24,15 @@ class _OffersPromotionsScreenState extends State<OffersPromotionsScreen> with Si
   }
 
   @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final offersAsync = ref.watch(fetchOffersProvider());
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
@@ -43,50 +55,68 @@ class _OffersPromotionsScreenState extends State<OffersPromotionsScreen> with Si
         ),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Mega Banner
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('MEGA WEEKEND OFFER', style: GoogleFonts.poppins(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
-                          Text('Get up to 25% OFF', style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-                          Text('On all turf bookings • Code: WEEKEND25', style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.sports_soccer, size: 64, color: Colors.white38),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              _promoCard('FLAT 15% OFF', 'On your first booking', 'FIRST15', 'Valid till 31 May 2025', '15% OFF'),
-              _promoCard('CASHBACK OFFER', 'Get 10% cashback on min ₹800', 'CASH10', 'Valid till 25 May 2025', '10% CASHBACK'),
-              _promoCard('EARLY BIRD OFFER', 'Book 2 days in advance & get 20% OFF', 'EARLY20', 'Valid till 30 May 2025', '20% OFF'),
-            ],
+        child: offersAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen)),
+          error: (err, stack) => Center(
+            child: Text('Failed to load offers: $err', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
           ),
+          data: (offers) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Mega Banner
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1E3C72), Color(0xFF2A5298)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('SPECIAL PROMOTION', style: GoogleFonts.poppins(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
+                              Text('Verified Live Deals', style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                              Text('Save more on your favorite slots', style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.sports_soccer, size: 64, color: Colors.white38),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  if (offers.isEmpty)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32.0),
+                        child: Text('No active offers right now.', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
+                      ),
+                    )
+                  else
+                    ...offers.map((offer) => _buildLiveOfferCard(offer)),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _promoCard(String title, String desc, String code, String validity, String badge) {
+  Widget _buildLiveOfferCard(Offer offer) {
+    final discountBadge = offer.discountType == 'percentage'
+        ? '${offer.discountValue.toInt()}% OFF'
+        : '₹${offer.discountValue.toInt()} OFF';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -102,22 +132,52 @@ class _OffersPromotionsScreenState extends State<OffersPromotionsScreen> with Si
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15)),
-                Text(desc, style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12)),
+                Text(
+                  offer.title,
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15),
+                ),
+                Text(
+                  offer.description,
+                  style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surfaceDark,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppTheme.primaryGreen),
+                    InkWell(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: offer.title));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Coupon code ${offer.title} copied!'),
+                            backgroundColor: AppTheme.primaryGreen,
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.surfaceDark,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: AppTheme.primaryGreen),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Code: ${offer.title}',
+                              style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 11),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.copy, size: 12, color: AppTheme.primaryGreen),
+                          ],
+                        ),
                       ),
-                      child: Text('Use Code: $code', style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 11)),
                     ),
                     const SizedBox(width: 10),
-                    Text(validity, style: GoogleFonts.poppins(color: AppTheme.textMuted, fontSize: 11)),
+                    Text(
+                      'Min ₹${offer.minBookingAmount.toInt()}',
+                      style: GoogleFonts.poppins(color: AppTheme.textMuted, fontSize: 11),
+                    ),
                   ],
                 ),
               ],
@@ -130,7 +190,7 @@ class _OffersPromotionsScreenState extends State<OffersPromotionsScreen> with Si
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              badge,
+              discountBadge,
               style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 11),
             ),
           ),

@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/turf_details/data/repositories/turf_repository.dart';
 
-class VenueCalendarScreen extends StatelessWidget {
+class VenueCalendarScreen extends ConsumerWidget {
   const VenueCalendarScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final slots = [
-      {'time': '6:00 PM - 7:00 PM', 'sport': 'Football (5v5)', 'status': 'Confirmed', 'color': Colors.green},
-      {'time': '7:00 PM - 8:00 PM', 'sport': 'Football (6v6)', 'status': 'Confirmed', 'color': Colors.green},
-      {'time': '8:00 PM - 9:00 PM', 'sport': 'Football (6v6)', 'status': 'Pending', 'color': Colors.amber},
-      {'time': '9:00 PM - 10:00 PM', 'sport': 'Cricket Nets', 'status': 'Blocked', 'color': Colors.purple},
-    ];
+  Widget build(BuildContext context, WidgetRef ref) {
+    final slotsAsync = ref.watch(fetchSlotsProvider(1));
+    final currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
@@ -32,48 +31,93 @@ class VenueCalendarScreen extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('<  May 2025  >', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
+                  Text(
+                    '<  $currentMonth  >',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
+                  ),
                   ElevatedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.add, color: Colors.black, size: 18),
-                    label: Text('Add Time Slot', style: GoogleFonts.poppins(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12)),
-                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen, minimumSize: const Size(120, 36)),
+                    onPressed: () {
+                      ref.invalidate(fetchSlotsProvider(1));
+                    },
+                    icon: const Icon(Icons.refresh, color: Colors.black, size: 18),
+                    label: Text(
+                      'Refresh Slots',
+                      style: GoogleFonts.poppins(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryGreen,
+                      minimumSize: const Size(120, 36),
+                    ),
                   ),
                 ],
               ),
             ),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: slots.length,
-                itemBuilder: (context, index) {
-                  final s = slots[index];
-                  final color = s['color'] as Color;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: color),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+              child: slotsAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen)),
+                error: (err, stack) => Center(
+                  child: Text('Failed to load slots: $err', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
+                ),
+                data: (slots) {
+                  if (slots.isEmpty) {
+                    return Center(
+                      child: Text('No slots scheduled for this month.', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: slots.length,
+                    itemBuilder: (context, index) {
+                      final slot = slots[index];
+                      final isAvailable = !slot.isBooked;
+                      final color = isAvailable ? AppTheme.primaryGreen : AppTheme.errorRed;
+                      final statusLabel = isAvailable ? 'Available' : 'Booked';
+
+                      final startFormatted = DateFormat('hh:mm a').format(slot.startTime);
+                      final endFormatted = DateFormat('hh:mm a').format(slot.endTime);
+                      final timeStr = '$startFormatted - $endFormatted';
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: color),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(s['time'] as String, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
-                            Text(s['sport'] as String, style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12)),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  timeStr,
+                                  style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Slot #${slot.id} • Capacity: ${slot.capacity}',
+                                  style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: color.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                statusLabel,
+                                style: GoogleFonts.poppins(color: color, fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                            ),
                           ],
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
-                          child: Text(s['status'] as String, style: GoogleFonts.poppins(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 11)),
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               ),

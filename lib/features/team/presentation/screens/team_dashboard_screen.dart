@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 
 final fetchTeamsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
@@ -11,17 +13,77 @@ final fetchTeamsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) asyn
   return (response.data as List).map((e) => Map<String, dynamic>.from(e)).toList();
 });
 
-class TeamDashboardScreen extends ConsumerWidget {
+class TeamDashboardScreen extends ConsumerStatefulWidget {
   const TeamDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TeamDashboardScreen> createState() => _TeamDashboardScreenState();
+}
+
+class _TeamDashboardScreenState extends ConsumerState<TeamDashboardScreen> {
+  StreamSubscription<Map<String, dynamic>>? _teamsSub;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _teamsSub = ref.read(realtimeServiceProvider).connectToChannel('teams').listen((event) {
+          if (mounted) {
+            ref.invalidate(fetchTeamsProvider);
+          }
+        });
+      } catch (e) {
+        debugPrint('Teams realtime subscription error: $e');
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _teamsSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final teamsAsync = ref.watch(fetchTeamsProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
-        title: const Text('Team Dashboard'),
+        title: Row(
+          children: [
+            const Text('Team Dashboard'),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryGreen.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: AppTheme.primaryGreen,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'LIVE',
+                    style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),

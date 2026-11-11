@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.db.models import Review, User, Turf
 from app.schemas.schemas import Review as ReviewSchema, ReviewCreate
 from app.core.security import get_current_user
+from app.core.websocket_manager import ws_manager
 
 router = APIRouter()
 
@@ -54,4 +55,15 @@ async def create_review(
         .filter(Review.id == new_review.id)
         .options(selectinload(Review.user))
     )
-    return result.scalar_one()
+    loaded_review = result.scalar_one()
+
+    await ws_manager.broadcast(f"reviews_{review_in.turf_id}", {
+        "type": "new_review",
+        "id": loaded_review.id,
+        "turf_id": loaded_review.turf_id,
+        "rating": loaded_review.rating,
+        "comment": loaded_review.comment,
+        "user_name": user.full_name or user.email or "Player",
+    })
+
+    return loaded_review

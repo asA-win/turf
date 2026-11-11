@@ -3,6 +3,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 from app.api.api_v1.api import api_router
 from app.db.session import engine, Base
 import app.db.models # Ensure models are loaded
@@ -18,6 +19,29 @@ app = FastAPI(title="Turf App API", description="Scalable, Secure, Cloud-Native 
 # Mount static uploads directory for free local file serving
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
+async def run_auto_migrations():
+    """Safely apply missing columns across existing Postgres/SQLite tables."""
+    migration_statements = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS hashed_password VARCHAR",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE turfs ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id)",
+        "ALTER TABLE turfs ADD COLUMN IF NOT EXISTS pitch_info VARCHAR DEFAULT '1 Nets'",
+        "ALTER TABLE turfs ADD COLUMN IF NOT EXISTS equipment_provided VARCHAR",
+        "ALTER TABLE turfs ADD COLUMN IF NOT EXISTS turf_type VARCHAR DEFAULT 'Artificial'",
+        "ALTER TABLE slots ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP",
+        "ALTER TABLE slots ADD COLUMN IF NOT EXISTS locked_by INTEGER REFERENCES users(id)",
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS sport_type VARCHAR DEFAULT 'Football'",
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE matches ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'live'",
+    ]
+    async with engine.begin() as conn:
+        for stmt in migration_statements:
+            try:
+                await conn.execute(text(stmt))
+            except Exception as e:
+                logger.debug(f"Migration note ({stmt}): {e}")
+
 @app.on_event("startup")
 async def on_startup():
     import asyncio
@@ -28,7 +52,8 @@ async def on_startup():
         try:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-            logger.info("Database tables initialized successfully.")
+            await run_auto_migrations()
+            logger.info("Database tables and column migrations completed successfully.")
             try:
                 from seed_db import seed_data
                 await seed_data()
@@ -76,4 +101,23 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok", "app": "Turf App API"}
+
+@app.get("/api/v1/system/migrate")
+async def system_migrate():
+    await run_auto_migrations()
+    try:
+        from seed_db import seed_data
+        await seed_data()
+        return {"status": "ok", "message": "Schema auto-migrated and seed verified"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/v1/system/seed")
+async def system_seed():
+    try:
+        from seed_db import seed_data
+        await seed_data()
+        return {"status": "ok", "message": "Data seeded successfully"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 

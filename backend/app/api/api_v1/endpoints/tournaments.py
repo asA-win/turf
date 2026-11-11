@@ -6,6 +6,7 @@ from typing import List
 from app.db.session import get_db
 from app.db.models import Tournament
 from app.schemas.schemas import Tournament as TournamentSchema, TournamentCreate
+from app.core.websocket_manager import ws_manager
 
 router = APIRouter()
 
@@ -37,6 +38,19 @@ async def create_tournament(req: TournamentCreate, db: AsyncSession = Depends(ge
     db.add(t)
     await db.commit()
     await db.refresh(t)
+
+    await ws_manager.broadcast("tournaments", {
+        "type": "tournament_created",
+        "tournament": {
+            "id": t.id,
+            "title": t.title,
+            "prize_pool": t.prize_pool,
+            "total_teams": t.total_teams,
+            "format": t.format,
+            "status": t.status,
+        }
+    })
+
     return t
 
 @router.get("/{tournament_id}", response_model=TournamentSchema)
@@ -53,6 +67,13 @@ async def register_team(req: TournamentRegisterRequest, db: AsyncSession = Depen
     t = result.scalar_one_or_none()
     if not t:
         raise HTTPException(status_code=404, detail="Tournament not found")
+
+    await ws_manager.broadcast("tournaments", {
+        "type": "tournament_registered",
+        "tournament_id": req.tournament_id,
+        "team_name": req.team_name,
+    })
+
     return {"message": f"Team '{req.team_name}' successfully registered for {t.title}!"}
 
 

@@ -92,3 +92,38 @@ def test_websocket_community_relay():
         assert data["type"] == "new_post"
         assert data["content"] == "Match was lit!"
 
+def test_websocket_tournaments_relay():
+    client = TestClient(app)
+    with client.websocket_connect("/api/v1/ws/tournaments") as ws:
+        payload = {"type": "tournament_created", "tournament_id": 99, "title": "Winter Cup"}
+        ws.send_json(payload)
+        data = ws.receive_json()
+        assert data["type"] == "tournament_created"
+        assert data["title"] == "Winter Cup"
+
+def test_websocket_teams_relay():
+    client = TestClient(app)
+    with client.websocket_connect("/api/v1/ws/teams") as ws:
+        payload = {"type": "member_joined", "team_id": 1, "member": {"name": "Cristiano"}}
+        ws.send_json(payload)
+        data = ws.receive_json()
+        assert data["type"] == "member_joined"
+        assert data["member"]["name"] == "Cristiano"
+
+def test_websocket_stocks_relay():
+    client = TestClient(app)
+    with client.websocket_connect("/api/v1/ws/stocks") as ws:
+        payload = {"type": "stock_traded", "stock_id": 1, "action": "buy", "shares": 10}
+        ws.send_json(payload)
+        data = ws.receive_json()
+        assert data["type"] == "stock_traded"
+        assert data["shares"] == 10
+
+def test_websocket_ping_pong_keepalive():
+    client = TestClient(app)
+    with client.websocket_connect("/api/v1/ws/scoreboard") as ws:
+        ws.send_json({"type": "ping"})
+        data = ws.receive_json()
+        assert data["type"] == "pong"
+
+

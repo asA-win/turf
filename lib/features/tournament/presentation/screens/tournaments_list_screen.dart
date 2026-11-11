@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/widgets/bys_bottom_nav_bar.dart';
 import 'package:turf_app/core/widgets/bys_profile_avatar.dart';
@@ -68,17 +70,27 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
     'Completed',
   ];
 
+  StreamSubscription<Map<String, dynamic>>? _tournamentsSub;
+
   @override
   void initState() {
     super.initState();
     TournamentRepository.instance.addListener(_onRepositoryChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       TournamentRepository.instance.syncWithBackend(ref.read(dioClientProvider));
+      try {
+        _tournamentsSub = ref.read(realtimeServiceProvider).connectToChannel('tournaments').listen((event) {
+          TournamentRepository.instance.handleRealtimeEvent(event);
+        });
+      } catch (e) {
+        debugPrint('Tournaments realtime error: $e');
+      }
     });
   }
 
   @override
   void dispose() {
+    _tournamentsSub?.cancel();
     TournamentRepository.instance.removeListener(_onRepositoryChanged);
     _searchController.dispose();
     super.dispose();

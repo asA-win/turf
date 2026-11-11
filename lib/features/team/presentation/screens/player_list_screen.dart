@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/team/presentation/screens/team_dashboard_screen.dart';
 
@@ -14,15 +16,24 @@ class PlayerListScreen extends ConsumerStatefulWidget {
 
 class _PlayerListScreenState extends ConsumerState<PlayerListScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  StreamSubscription<Map<String, dynamic>>? _teamsSub;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _teamsSub = ref.read(realtimeServiceProvider).connectToChannel('teams').listen((_) {
+          if (mounted) ref.invalidate(fetchTeamsProvider);
+        });
+      } catch (_) {}
+    });
   }
 
   @override
   void dispose() {
+    _teamsSub?.cancel();
     _tabController.dispose();
     super.dispose();
   }

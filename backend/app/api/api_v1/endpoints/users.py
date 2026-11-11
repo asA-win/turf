@@ -283,6 +283,18 @@ async def add_wallet_money(
     db.add(transaction)
     await db.commit()
     await db.refresh(wallet)
+
+    await ws_manager.broadcast(f"user_{user.id}", {
+        "type": "wallet_updated",
+        "balance": wallet.balance,
+        "coins": wallet.coins,
+        "transaction": {
+            "title": transaction.title,
+            "amount": transaction.amount,
+            "type": transaction.transaction_type,
+        }
+    })
+
     return wallet
 
 @router.get("/wallet/transactions", response_model=List[WalletTransactionResponse])

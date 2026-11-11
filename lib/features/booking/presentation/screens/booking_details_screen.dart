@@ -1,14 +1,16 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/booking/data/repositories/booking_repository.dart';
 import 'package:turf_app/features/booking/domain/models/booking.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class BookingDetailsScreen extends ConsumerWidget {
+class BookingDetailsScreen extends ConsumerStatefulWidget {
   final String bookingId;
   final Booking? booking;
 
@@ -17,6 +19,40 @@ class BookingDetailsScreen extends ConsumerWidget {
     required this.bookingId,
     this.booking,
   });
+
+  @override
+  ConsumerState<BookingDetailsScreen> createState() => _BookingDetailsScreenState();
+}
+
+class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
+  StreamSubscription<Map<String, dynamic>>? _bookingSub;
+  String? _liveStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _bookingSub = ref.read(realtimeServiceProvider).connectToChannel('booking_updates').listen((event) {
+          if (!mounted) return;
+          ref.invalidate(fetchMyBookingsProvider);
+          final bId = event['booking_id']?.toString() ?? event['id']?.toString();
+          final newStatus = event['status']?.toString();
+          if (bId == widget.bookingId && newStatus != null) {
+            setState(() {
+              _liveStatus = newStatus;
+            });
+          }
+        });
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _bookingSub?.cancel();
+    super.dispose();
+  }
 
   Future<void> _openMap(double? lat, double? lng) async {
     if (lat == null || lng == null) return;
@@ -28,12 +64,12 @@ class BookingDetailsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     // Resolve booking from param, or watch repository / demo sample
-    Booking? resolvedBooking = booking;
+    Booking? resolvedBooking = widget.booking;
     if (resolvedBooking == null) {
       final myBookings = ref.watch(fetchMyBookingsProvider).valueOrNull ?? demoSampleBookings;
-      final matchId = int.tryParse(bookingId);
+      final matchId = int.tryParse(widget.bookingId);
       resolvedBooking = myBookings.cast<Booking?>().firstWhere(
             (b) => b?.id == matchId,
             orElse: () => null,
@@ -44,7 +80,7 @@ class BookingDetailsScreen extends ConsumerWidget {
     final location = resolvedBooking?.turf?.location ?? 'Indiranagar, Bengaluru';
     final bookingDate = resolvedBooking?.bookingDate ?? DateTime.now();
     final totalPrice = resolvedBooking?.totalPrice ?? 1500.0;
-    final status = resolvedBooking?.status ?? 'confirmed';
+    final status = _liveStatus ?? resolvedBooking?.status ?? 'confirmed';
     final imageUrl = resolvedBooking?.turf?.imageUrl ??
         'https://images.unsplash.com/photo-1529900241452-4467c6ebc4ae?auto=format&fit=crop&w=600&q=80';
     final isCancelled = status.toLowerCase() == 'cancelled';
@@ -110,7 +146,7 @@ class BookingDetailsScreen extends ConsumerWidget {
                       ],
                     ),
                     Text(
-                      'ID: #$bookingId',
+                      'ID: #${widget.bookingId}',
                       style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12, fontWeight: FontWeight.w600),
                     ),
                   ],
@@ -358,7 +394,7 @@ class BookingDetailsScreen extends ConsumerWidget {
               if (!isCancelled)
                 Center(
                   child: TextButton.icon(
-                    onPressed: () => context.push('/cancel-booking/$bookingId'),
+                    onPressed: () => context.push('/cancel-booking/${widget.bookingId}'),
                     icon: const Icon(Icons.cancel_outlined, color: AppTheme.errorRed, size: 16),
                     label: Text(
                       'Cancel Booking',

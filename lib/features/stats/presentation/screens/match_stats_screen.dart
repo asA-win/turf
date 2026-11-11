@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 
 class MatchStatsScreen extends StatefulWidget {
@@ -21,11 +24,40 @@ class MatchStatsScreen extends StatefulWidget {
 class _MatchStatsScreenState extends State<MatchStatsScreen> {
   late String _currentSport;
   int _selectedTeamTab = 0; // 0: All, 1: Team A, 2: Team B
+  StreamSubscription<Map<String, dynamic>>? _scoreboardSub;
+  String? _liveScoreDisplay;
 
   @override
   void initState() {
     super.initState();
     _currentSport = _resolveInitialSport();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        final container = ProviderScope.containerOf(context, listen: false);
+        final realtime = container.read(realtimeServiceProvider);
+        _scoreboardSub = realtime.connectToChannel('scoreboard').listen((data) {
+          if (!mounted) return;
+          final type = data['type'] as String?;
+          if (type == 'score_update') {
+            final a = data['team_a_score'] ?? data['scoreA'];
+            final b = data['team_b_score'] ?? data['scoreB'];
+            if (a != null && b != null) {
+              setState(() {
+                _liveScoreDisplay = '$a vs $b';
+              });
+            }
+          }
+        });
+      } catch (_) {
+        // Runs cleanly in widget unit tests without ProviderScope
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scoreboardSub?.cancel();
+    super.dispose();
   }
 
   String _resolveInitialSport() {
@@ -140,6 +172,7 @@ class _MatchStatsScreenState extends State<MatchStatsScreen> {
   }
 
   String get _scoreDisplay {
+    if (_liveScoreDisplay != null) return _liveScoreDisplay!;
     if (widget.matchData != null && widget.matchData!['scoreDisplay'] != null) {
       return widget.matchData!['scoreDisplay'].toString();
     }

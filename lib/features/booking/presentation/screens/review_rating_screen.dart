@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/turf_details/data/repositories/review_repository.dart';
 
-class ReviewRatingScreen extends StatefulWidget {
+class ReviewRatingScreen extends ConsumerStatefulWidget {
   const ReviewRatingScreen({super.key});
 
   @override
-  State<ReviewRatingScreen> createState() => _ReviewRatingScreenState();
+  ConsumerState<ReviewRatingScreen> createState() => _ReviewRatingScreenState();
 }
 
-class _ReviewRatingScreenState extends State<ReviewRatingScreen> {
+class _ReviewRatingScreenState extends ConsumerState<ReviewRatingScreen> {
   int _rating = 5;
   final TextEditingController _reviewController = TextEditingController(text: 'Great turf! Well maintained and awesome experience. Will book again.');
 
@@ -34,7 +38,7 @@ class _ReviewRatingScreenState extends State<ReviewRatingScreen> {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppTheme.primaryGreen.withOpacity(0.15),
+                  color: AppTheme.primaryGreen.withValues(alpha: 0.15),
                 ),
                 child: const Icon(Icons.thumb_up_alt_outlined, size: 64, color: AppTheme.primaryGreen),
               ),
@@ -74,11 +78,37 @@ class _ReviewRatingScreenState extends State<ReviewRatingScreen> {
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Thank you for your review!')),
-                  );
-                  context.pop();
+                onPressed: () async {
+                  try {
+                    final dio = ref.read(dioClientProvider);
+                    await dio.post('/reviews/', data: {
+                      'turf_id': 1,
+                      'rating': _rating,
+                      'comment': _reviewController.text.trim(),
+                    });
+                  } catch (_) {}
+
+                  try {
+                    ref.read(realtimeServiceProvider).emit('reviews/1', {
+                      'type': 'new_review',
+                      'turf_id': 1,
+                      'rating': _rating,
+                      'comment': _reviewController.text.trim(),
+                    });
+                    ref.read(realtimeServiceProvider).emit('booking_updates', {
+                      'type': 'new_review',
+                      'turf_id': 1,
+                    });
+                  } catch (_) {}
+
+                  ref.invalidate(fetchTurfReviewsProvider(1));
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Thank you for your review!')),
+                    );
+                    context.pop();
+                  }
                 },
                 child: const Text('Submit Review'),
               ),

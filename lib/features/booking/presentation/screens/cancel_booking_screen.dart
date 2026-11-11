@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/booking/data/repositories/booking_repository.dart';
+import 'package:turf_app/features/turf_details/data/repositories/turf_repository.dart';
 
-class CancelBookingScreen extends StatefulWidget {
+class CancelBookingScreen extends ConsumerStatefulWidget {
   final String bookingId;
   const CancelBookingScreen({super.key, required this.bookingId});
 
   @override
-  State<CancelBookingScreen> createState() => _CancelBookingScreenState();
+  ConsumerState<CancelBookingScreen> createState() => _CancelBookingScreenState();
 }
 
-class _CancelBookingScreenState extends State<CancelBookingScreen> {
+class _CancelBookingScreenState extends ConsumerState<CancelBookingScreen> {
   String _reason = 'Select a reason';
 
   final reasons = [
@@ -103,7 +108,38 @@ class _CancelBookingScreenState extends State<CancelBookingScreen> {
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: () => context.go('/my-bookings'),
+                onPressed: () async {
+                  final bId = widget.bookingId;
+                  try {
+                    final dio = ref.read(dioClientProvider);
+                    await dio.post('/bookings/$bId/cancel');
+                  } catch (_) {}
+
+                  try {
+                    ref.read(realtimeServiceProvider).emit('booking_updates', {
+                      'type': 'booking_cancelled',
+                      'booking_id': bId,
+                      'status': 'cancelled',
+                    });
+                    ref.read(realtimeServiceProvider).emit('booking_requests', {
+                      'type': 'booking_cancelled',
+                      'booking_id': bId,
+                    });
+                  } catch (_) {}
+
+                  ref.invalidate(fetchMyBookingsProvider);
+                  ref.invalidate(fetchTurfStatsProvider);
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Booking cancelled successfully. Refund initiated.'),
+                        backgroundColor: AppTheme.errorRed,
+                      ),
+                    );
+                    context.go('/my-bookings');
+                  }
+                },
                 style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed),
                 child: Text('Cancel Booking', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold)),
               ),

@@ -1,21 +1,84 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/admin/presentation/controllers/user_management_controller.dart';
 import 'package:turf_app/features/auth/domain/models/user_profile.dart';
 
-class ManageUsersScreen extends ConsumerWidget {
+class ManageUsersScreen extends ConsumerStatefulWidget {
   const ManageUsersScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ManageUsersScreen> createState() => _ManageUsersScreenState();
+}
+
+class _ManageUsersScreenState extends ConsumerState<ManageUsersScreen> {
+  StreamSubscription<Map<String, dynamic>>? _wsSub;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      _wsSub = ref.read(realtimeServiceProvider).connectToChannel('booking_updates').listen((_) {
+        if (mounted) {
+          ref.invalidate(fetchAllUsersProvider);
+        }
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _wsSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final usersAsync = ref.watch(fetchAllUsersProvider);
     final controllerState = ref.watch(userManagementControllerProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Manage Users', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Manage Users', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryGreen.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.primaryGreen, width: 0.8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: AppTheme.primaryGreen,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'LIVE',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryGreen,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         centerTitle: true,
       ),
       body: usersAsync.when(
@@ -29,7 +92,7 @@ class ManageUsersScreen extends ConsumerWidget {
                 itemCount: users.length,
                 itemBuilder: (context, index) {
                   final user = users[index];
-                  return _userCard(context, ref, user);
+                  return _userCard(context, user);
                 },
               ),
             ),
@@ -41,7 +104,7 @@ class ManageUsersScreen extends ConsumerWidget {
     );
   }
 
-  Widget _userCard(BuildContext context, WidgetRef ref, UserProfile user) {
+  Widget _userCard(BuildContext context, UserProfile user) {
     final role = user.role ?? 'user';
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -72,8 +135,15 @@ class ManageUsersScreen extends ConsumerWidget {
           ],
         ),
         trailing: PopupMenuButton<String>(
-          onSelected: (newRole) {
-            ref.read(userManagementControllerProvider.notifier).updateUserRole(user.id, newRole);
+          onSelected: (newRole) async {
+            await ref.read(userManagementControllerProvider.notifier).updateUserRole(user.id, newRole);
+            try {
+              ref.read(realtimeServiceProvider).emit('booking_updates', {
+                'type': 'user_role_updated',
+                'user_id': user.id,
+                'role': newRole,
+              });
+            } catch (_) {}
           },
           itemBuilder: (context) => [
             const PopupMenuItem(value: 'user', child: Text('Make User')),

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/turf_details/data/repositories/turf_repository.dart';
 import 'package:turf_app/features/turf_details/domain/models/turf.dart';
@@ -18,6 +20,26 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
   bool _isFavorite = false;
   bool _isDescriptionExpanded = false;
   String _selectedPeakHour = '6 PM - 10 PM';
+  StreamSubscription<Map<String, dynamic>>? _turfSub;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final turfIdInt = int.tryParse(widget.turfId) ?? 1;
+      try {
+        _turfSub = ref.read(realtimeServiceProvider).connectToChannel('slots/${widget.turfId}').listen((_) {
+          if (mounted) ref.invalidate(fetchTurfByIdProvider(turfIdInt));
+        });
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _turfSub?.cancel();
+    super.dispose();
+  }
 
   final List<String> _carouselImages = [
     'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=1200',

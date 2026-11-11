@@ -9,6 +9,7 @@ from app.db.models import Turf, User as UserModel, Booking, Slot, Review
 from app.schemas.schemas import Turf as TurfSchema, TurfCreate
 
 from app.core.security import get_current_user
+from app.core.websocket_manager import ws_manager
 
 router = APIRouter()
 
@@ -112,6 +113,13 @@ async def create_turf(
     # Initialize with 0 ratings
     db_turf.average_rating = 0.0
     db_turf.total_reviews = 0
+
+    await ws_manager.broadcast("booking_updates", {
+        "type": "turf_created",
+        "turf_id": db_turf.id,
+        "name": db_turf.name,
+    })
+
     return db_turf
 
 @router.get("/my-turfs", response_model=List[TurfSchema])

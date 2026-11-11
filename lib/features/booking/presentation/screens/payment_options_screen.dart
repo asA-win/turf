@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/booking/data/repositories/booking_repository.dart';
 import 'package:turf_app/features/booking/domain/models/booking.dart';
@@ -56,6 +57,23 @@ class _PaymentOptionsScreenState extends ConsumerState<PaymentOptionsScreen> {
       // Refresh MyBookings provider state so it reflects in UI
       ref.invalidate(fetchMyBookingsProvider);
 
+      try {
+        ref.read(realtimeServiceProvider).emit('booking_updates', {
+          'type': 'booking_created',
+          'booking_id': booking.id,
+          'turf_id': effectiveTurf.id,
+          'slot_id': effectiveSlot.id,
+          'status': 'confirmed',
+          'total_price': booking.totalPrice,
+        });
+        ref.read(realtimeServiceProvider).emit('slots/${effectiveTurf.id}', {
+          'type': 'slot_booked',
+          'slot_id': effectiveSlot.id,
+          'turf_id': effectiveTurf.id,
+          'is_booked': true,
+        });
+      } catch (_) {}
+
       if (!mounted) return;
       setState(() => isProcessing = false);
 
@@ -78,6 +96,23 @@ class _PaymentOptionsScreenState extends ConsumerState<PaymentOptionsScreen> {
         status: 'confirmed',
         turf: effectiveTurf,
       );
+
+      try {
+        ref.read(realtimeServiceProvider).emit('booking_updates', {
+          'type': 'booking_created',
+          'booking_id': fallbackBooking.id,
+          'turf_id': effectiveTurf.id,
+          'slot_id': effectiveSlot.id,
+          'status': 'confirmed',
+          'total_price': fallbackBooking.totalPrice,
+        });
+        ref.read(realtimeServiceProvider).emit('slots/${effectiveTurf.id}', {
+          'type': 'slot_booked',
+          'slot_id': effectiveSlot.id,
+          'turf_id': effectiveTurf.id,
+          'is_booked': true,
+        });
+      } catch (_) {}
 
       if (!mounted) return;
       setState(() => isProcessing = false);

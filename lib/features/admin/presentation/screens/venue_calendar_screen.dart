@@ -1,23 +1,81 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/turf_details/data/repositories/turf_repository.dart';
 
-class VenueCalendarScreen extends ConsumerWidget {
+class VenueCalendarScreen extends ConsumerStatefulWidget {
   const VenueCalendarScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<VenueCalendarScreen> createState() => _VenueCalendarScreenState();
+}
+
+class _VenueCalendarScreenState extends ConsumerState<VenueCalendarScreen> {
+  StreamSubscription<Map<String, dynamic>>? _calendarSub;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _calendarSub = ref.read(realtimeServiceProvider).connectToChannel('booking_updates').listen((_) {
+          if (mounted) ref.invalidate(fetchSlotsProvider(1));
+        });
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _calendarSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final slotsAsync = ref.watch(fetchSlotsProvider(1));
     final currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
-        title: const Text('Venue Calendar'),
+        title: Row(
+          children: [
+            const Text('Venue Calendar'),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryGreen.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: AppTheme.primaryGreen,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'LIVE',
+                    style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),

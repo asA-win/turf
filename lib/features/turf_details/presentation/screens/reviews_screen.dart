@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/turf_details/data/repositories/review_repository.dart';
 import 'package:turf_app/features/turf_details/domain/models/review.dart';
@@ -17,6 +19,26 @@ class ReviewsScreen extends ConsumerStatefulWidget {
 
 class _ReviewsScreenState extends ConsumerState<ReviewsScreen> {
   int _selectedFilter = 0; // 0: All, 1: 5★, 2: 4★, 3: 3★, 4: 2★, 5: 1★
+  StreamSubscription<Map<String, dynamic>>? _reviewsSub;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final numericId = int.tryParse(widget.turfId) ?? 1;
+      try {
+        _reviewsSub = ref.read(realtimeServiceProvider).connectToChannel('reviews/${widget.turfId}').listen((_) {
+          if (mounted) ref.invalidate(fetchTurfReviewsProvider(numericId));
+        });
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _reviewsSub?.cancel();
+    super.dispose();
+  }
 
   void _showWriteReviewDialog(int numericTurfId) {
     int rating = 5;

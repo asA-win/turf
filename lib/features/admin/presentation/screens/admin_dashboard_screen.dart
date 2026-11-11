@@ -1,17 +1,47 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/turf_details/domain/models/turf.dart';
 import 'package:turf_app/features/turf_details/data/repositories/turf_repository.dart';
 import 'package:turf_app/core/providers/api_client.dart';
 
-class AdminDashboardScreen extends ConsumerWidget {
+class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
+  StreamSubscription<Map<String, dynamic>>? _adminRealtimeSub;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _adminRealtimeSub = ref.read(realtimeServiceProvider).connectToChannel('booking_updates').listen((_) {
+          if (mounted) {
+            ref.invalidate(fetchTurfStatsProvider);
+            ref.invalidate(fetchTurfsProvider(null, null));
+          }
+        });
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _adminRealtimeSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final turfsAsync = ref.watch(fetchTurfsProvider(null, null));
     final statsAsync = ref.watch(fetchTurfStatsProvider);
 

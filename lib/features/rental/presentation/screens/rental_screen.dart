@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 
 final fetchRentalsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
@@ -19,6 +21,25 @@ class EquipmentRentalScreen extends ConsumerStatefulWidget {
 
 class _EquipmentRentalScreenState extends ConsumerState<EquipmentRentalScreen> {
   String _searchQuery = '';
+  StreamSubscription<Map<String, dynamic>>? _wsSub;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      _wsSub = ref.read(realtimeServiceProvider).connectToChannel('booking_updates').listen((_) {
+        if (mounted) {
+          ref.invalidate(fetchRentalsProvider);
+        }
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _wsSub?.cancel();
+    super.dispose();
+  }
 
   IconData _getIconForName(String name) {
     final lower = name.toLowerCase();
@@ -38,9 +59,44 @@ class _EquipmentRentalScreenState extends ConsumerState<EquipmentRentalScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
-        title: Text(
-          'Equipment Rental',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            Text(
+              'Equipment Rental',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryGreen.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.primaryGreen, width: 0.8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: AppTheme.primaryGreen,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'LIVE',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryGreen,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
       body: SafeArea(
@@ -132,6 +188,21 @@ class _EquipmentRentalScreenState extends ConsumerState<EquipmentRentalScreen> {
                               height: 36,
                               child: ElevatedButton(
                                 onPressed: () {
+                                  try {
+                                    ref.read(realtimeServiceProvider).emit('booking_requests', {
+                                      'type': 'rental_booked',
+                                      'name': name,
+                                      'price': price,
+                                      'sport': 'Equipment Rental',
+                                      'status': 'confirmed',
+                                      'timestamp': DateTime.now().toIso8601String(),
+                                    });
+                                    ref.read(realtimeServiceProvider).emit('booking_updates', {
+                                      'type': 'rental_booked',
+                                      'name': name,
+                                      'timestamp': DateTime.now().toIso8601String(),
+                                    });
+                                  } catch (_) {}
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text('$name booked for rent at $price!'),

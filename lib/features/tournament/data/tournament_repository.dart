@@ -69,6 +69,63 @@ class TournamentRepository extends ChangeNotifier {
     }
   }
 
+  void handleRealtimeEvent(Map<String, dynamic> event) {
+    final type = event['type'] as String?;
+    if (type == 'tournament_created') {
+      final tData = event['tournament'] as Map<String, dynamic>?;
+      if (tData != null) {
+        final backendId = tData['id'];
+        final idStr = 'tourn_$backendId';
+        if (!_tournaments.any((t) => t['id'] == idStr || t['backendId'] == backendId)) {
+          _tournaments.insert(0, {
+            'id': idStr,
+            'backendId': backendId,
+            'name': tData['title'] ?? 'Tournament Championship',
+            'sport': 'Football',
+            'status': tData['status'] ?? 'Open for Registration',
+            'prizePool': tData['prize_pool'] != null ? '₹${(tData['prize_pool'] as num).toInt()}' : '₹50,000',
+            'entryFee': '₹1,500',
+            'entryFeeAmount': 1500,
+            'totalSpots': (tData['total_teams'] as num?)?.toInt() ?? 16,
+            'spotsFilled': 1,
+            'format': tData['format'] ?? 'Knockout',
+            'venue': 'Play Arena',
+            'area': 'Koramangala',
+            'city': 'Bangalore',
+            'date': 'Coming Soon',
+            'registeredTeams': _generateDefaultTeamsForSport('Football', 1),
+            'fixtures': <Map<String, dynamic>>[],
+            'fixturesGenerated': false,
+            'isLive': true,
+          });
+          notifyListeners();
+        }
+      }
+    } else if (type == 'tournament_registered') {
+      final backendId = event['tournament_id'];
+      final teamName = event['team_name'] as String? ?? 'Challenger Team';
+      final idx = _tournaments.indexWhere((t) => t['backendId'] == backendId || t['id'] == 'tourn_$backendId');
+      if (idx != -1) {
+        final t = Map<String, dynamic>.from(_tournaments[idx]);
+        final spotsFilled = (t['spotsFilled'] as num?)?.toInt() ?? 0;
+        final totalSpots = (t['totalSpots'] as num?)?.toInt() ?? 16;
+        if (spotsFilled < totalSpots) {
+          t['spotsFilled'] = spotsFilled + 1;
+        }
+        final teams = List<Map<String, dynamic>>.from(t['registeredTeams'] ?? []);
+        teams.add({
+          'name': teamName,
+          'seed': teams.length + 1,
+          'status': 'Confirmed',
+          'captain': 'Captain',
+        });
+        t['registeredTeams'] = teams;
+        _tournaments[idx] = t;
+        notifyListeners();
+      }
+    }
+  }
+
   List<Map<String, dynamic>> get tournaments {
     if (_tournaments.isEmpty) {
       _tournaments = _cloneInitialTournaments();

@@ -1,22 +1,63 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 
-class TeamManagementScreen extends StatefulWidget {
+class TeamManagementScreen extends ConsumerStatefulWidget {
   const TeamManagementScreen({super.key});
 
   @override
-  State<TeamManagementScreen> createState() => _TeamManagementScreenState();
+  ConsumerState<TeamManagementScreen> createState() => _TeamManagementScreenState();
 }
 
-class _TeamManagementScreenState extends State<TeamManagementScreen> {
+class _TeamManagementScreenState extends ConsumerState<TeamManagementScreen> {
+  StreamSubscription<Map<String, dynamic>>? _teamsSub;
+
   final List<Map<String, String>> members = [
     {'name': 'John Doe', 'role': 'Captain', 'avatar': 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'},
     {'name': 'Alex Johnson', 'role': 'Midfielder', 'avatar': 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100'},
     {'name': 'Michael Brown', 'role': 'Defender', 'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100'},
     {'name': 'David Williams', 'role': 'Goalkeeper', 'avatar': 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=100'},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _teamsSub = ref.read(realtimeServiceProvider).connectToChannel('teams').listen((event) {
+          if (mounted && event['type'] == 'member_joined') {
+            final m = event['member'] as Map<String, dynamic>?;
+            if (m != null) {
+              final name = m['name']?.toString() ?? 'New Teammate';
+              final role = m['role']?.toString() ?? 'Player';
+              if (!members.any((existing) => existing['name'] == name)) {
+                setState(() {
+                  members.add({
+                    'name': name,
+                    'role': role,
+                    'avatar': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
+                  });
+                });
+              }
+            }
+          }
+        });
+      } catch (e) {
+        debugPrint('Team management realtime error: $e');
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _teamsSub?.cancel();
+    super.dispose();
+  }
 
   void _showInvitePlayerDialog() {
     final nameController = TextEditingController();
@@ -139,6 +180,22 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
                             'avatar': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
                           });
                         });
+                        try {
+                          ref.read(dioClientProvider).post('/teams/1/members', data: {
+                            'name': name,
+                            'role': selectedRole,
+                          });
+                        } catch (_) {}
+                        try {
+                          ref.read(realtimeServiceProvider).emitToChannel('teams', {
+                            'type': 'member_joined',
+                            'team_id': 1,
+                            'member': {
+                              'name': name,
+                              'role': selectedRole,
+                            },
+                          });
+                        } catch (_) {}
                       }
                       Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(

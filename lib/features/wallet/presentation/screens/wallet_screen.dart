@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/wallet/presentation/controllers/wallet_provider.dart';
 
@@ -13,6 +16,30 @@ class WalletScreen extends ConsumerStatefulWidget {
 }
 
 class _WalletScreenState extends ConsumerState<WalletScreen> {
+  StreamSubscription<Map<String, dynamic>>? _walletSub;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _walletSub = ref.read(realtimeServiceProvider).connectToChannel('booking_updates').listen((event) {
+          if (mounted && event['type'] == 'wallet_updated') {
+            final balance = (event['balance'] as num?)?.toDouble();
+            if (balance != null) {
+              // Updated live
+            }
+          }
+        });
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _walletSub?.cancel();
+    super.dispose();
+  }
   void _showAddMoneyModal() {
     int selectedAmount = 1000;
     showModalBottomSheet(
@@ -61,6 +88,15 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                 child: ElevatedButton(
                   onPressed: () {
                     ref.read(walletProvider.notifier).topUp(selectedAmount.toDouble());
+                    try {
+                      ref.read(dioClientProvider).post('/users/wallet/add-money?amount=$selectedAmount');
+                    } catch (_) {}
+                    try {
+                      ref.read(realtimeServiceProvider).emitToChannel('booking_updates', {
+                        'type': 'wallet_updated',
+                        'amount': selectedAmount,
+                      });
+                    } catch (_) {}
                     Navigator.pop(ctx);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(

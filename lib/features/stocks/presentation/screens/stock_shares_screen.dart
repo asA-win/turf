@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 
 final fetchStocksProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
@@ -18,6 +20,43 @@ class StockSharesScreen extends ConsumerStatefulWidget {
 }
 
 class _StockSharesScreenState extends ConsumerState<StockSharesScreen> {
+  StreamSubscription<Map<String, dynamic>>? _stocksSub;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _stocksSub = ref.read(realtimeServiceProvider).connectToChannel('stocks').listen((event) {
+          if (mounted) {
+            ref.invalidate(fetchStocksProvider);
+            final shares = event['shares'] ?? '';
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.trending_up, color: AppTheme.primaryGreen),
+                    const SizedBox(width: 8),
+                    Text('⚡ Live Trade: $shares shares updated!'),
+                  ],
+                ),
+                backgroundColor: AppTheme.cardDark,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        });
+      } catch (e) {
+        debugPrint('Stocks realtime error: $e');
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _stocksSub?.cancel();
+    super.dispose();
+  }
   void _openTradeModal(Map<String, dynamic> stock, bool isBuy) {
     int sharesCount = 10;
     final stockId = stock['id'] as int? ?? 1;
@@ -151,9 +190,40 @@ class _StockSharesScreenState extends ConsumerState<StockSharesScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
-        title: Text(
-          'Turf Stock Shares',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            Text(
+              'Turf Stock Shares',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryGreen.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: AppTheme.primaryGreen,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'MARKET LIVE',
+                    style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
       body: SafeArea(

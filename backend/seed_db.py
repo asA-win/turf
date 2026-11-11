@@ -14,19 +14,38 @@ async def seed_data():
         if len(existing.scalars().all()) >= 3:
             return
 
-        async def get_or_create_user(email, full_name, firebase_uid, role):
+        async def get_or_create_user(email, full_name, firebase_uid, role, default_pw=None):
+            from app.core.security import hash_password
             res = await session.execute(select(User).filter(User.email == email))
             user = res.scalar_one_or_none()
+            pw = default_pw or ("admin123" if role == "admin" else "owner123")
             if not user:
-                user = User(email=email, full_name=full_name, firebase_uid=firebase_uid, role=role)
+                user = User(
+                    email=email,
+                    full_name=full_name,
+                    firebase_uid=firebase_uid,
+                    role=role,
+                    hashed_password=hash_password(pw),
+                    is_verified=True
+                )
+                session.add(user)
+                await session.flush()
+            else:
+                if not user.hashed_password:
+                    user.hashed_password = hash_password(pw)
+                user.is_verified = True
+                user.role = role
                 session.add(user)
                 await session.flush()
             return user
 
-        admin_user = await get_or_create_user("admin@example.com", "System Admin", "admin_uid_123", "admin")
-        owner_user = await get_or_create_user("owner@example.com", "Elite Turf Owner", "owner_uid_123", "owner")
+        admin_user = await get_or_create_user("admin@example.com", "System Admin", "admin_uid_123", "admin", "admin123")
+        owner_user = await get_or_create_user("owner@example.com", "Elite Turf Owner", "owner_uid_123", "owner", "owner123")
+        customer_user = await get_or_create_user("customer@example.com", "Demo Customer", "customer_uid_123", "user", "password123")
 
         async def get_or_create_turf(name, **kwargs):
+            kwargs.pop("average_rating", None)
+            kwargs.pop("total_reviews", None)
             res = await session.execute(select(Turf).filter(Turf.name == name))
             turf = res.scalar_one_or_none()
             if not turf:

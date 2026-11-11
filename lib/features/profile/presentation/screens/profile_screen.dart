@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/widgets/bys_bottom_nav_bar.dart';
 import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
@@ -17,6 +19,28 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  StreamSubscription<Map<String, dynamic>>? _profileRealtimeSub;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _profileRealtimeSub = ref.read(realtimeServiceProvider).connectToChannel('booking_updates').listen((_) {
+          if (mounted) {
+            ref.invalidate(fetchMyBookingsProvider);
+            ref.invalidate(fetchUserProfileProvider);
+          }
+        });
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _profileRealtimeSub?.cancel();
+    super.dispose();
+  }
   Future<void> _handleVenueOwnerAccess(BuildContext context, String currentRole) async {
     final isAlreadyOwner = currentRole.toLowerCase() == 'owner' || currentRole.toLowerCase() == 'admin';
     if (isAlreadyOwner) {

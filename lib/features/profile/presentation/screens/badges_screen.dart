@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
 import 'package:turf_app/features/booking/data/repositories/booking_repository.dart';
@@ -16,22 +18,32 @@ class BadgesScreen extends ConsumerStatefulWidget {
 
 class _BadgesScreenState extends ConsumerState<BadgesScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  StreamSubscription<Map<String, dynamic>>? _wsSub;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    try {
+      _wsSub = ref.read(realtimeServiceProvider).connectToChannel('booking_updates').listen((_) {
+        if (mounted) {
+          ref.invalidate(fetchMyBookingsProvider);
+          ref.invalidate(fetchUserProfileProvider);
+        }
+      });
+    } catch (_) {}
   }
 
   @override
   void dispose() {
+    _wsSub?.cancel();
     _tabController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final userAsync = ref.watch(fetchUserProfileProvider);
+    ref.watch(fetchUserProfileProvider);
     final bookingsAsync = ref.watch(fetchMyBookingsProvider);
     final wallet = ref.watch(walletProvider);
 

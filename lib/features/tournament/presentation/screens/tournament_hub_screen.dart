@@ -24,6 +24,7 @@ class _TournamentHubScreenState extends State<TournamentHubScreen> {
   @override
   void initState() {
     super.initState();
+    TournamentRepository.instance.addListener(_onRepoChanged);
     final initTab = widget.tournamentData?['initialTab'] as int?;
     if (initTab != null && initTab >= 0 && initTab < 5) {
       _selectedTab = initTab;
@@ -31,6 +32,16 @@ class _TournamentHubScreenState extends State<TournamentHubScreen> {
       // Default to Teams tab so players see the team roster
       _selectedTab = 0;
     }
+  }
+
+  @override
+  void dispose() {
+    TournamentRepository.instance.removeListener(_onRepoChanged);
+    super.dispose();
+  }
+
+  void _onRepoChanged() {
+    if (mounted) setState(() {});
   }
 
   void _showRegisterTeamDialog(Map<String, dynamic> tournament) {

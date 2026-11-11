@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 
-class CreateMatchScreen extends StatefulWidget {
+class CreateMatchScreen extends ConsumerStatefulWidget {
   const CreateMatchScreen({super.key});
 
   @override
-  State<CreateMatchScreen> createState() => _CreateMatchScreenState();
+  ConsumerState<CreateMatchScreen> createState() => _CreateMatchScreenState();
 }
 
-class _CreateMatchScreenState extends State<CreateMatchScreen> {
+class _CreateMatchScreenState extends ConsumerState<CreateMatchScreen> {
   String _selectedSport = 'Football';
   int _playersCount = 10;
   String _level = 'Intermediate';
@@ -141,7 +144,36 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: () => context.push('/invite-players'),
+                onPressed: () async {
+                  try {
+                    final dio = ref.read(dioClientProvider);
+                    await dio.post('/matches/', data: {
+                      'turf_id': 1,
+                      'team_a_name': 'My Team',
+                      'team_b_name': 'Challengers',
+                      'team_a_score': 0,
+                      'team_b_score': 0,
+                      'status': 'scheduled',
+                      'sport_type': _selectedSport,
+                    });
+                  } catch (_) {}
+                  try {
+                    ref.read(realtimeServiceProvider).emit('scoreboard', {
+                      'type': 'new_match',
+                      'sport_type': _selectedSport,
+                      'team_a_name': 'My Team',
+                      'team_b_name': 'Challengers',
+                      'status': 'scheduled',
+                    });
+                    ref.read(realtimeServiceProvider).emit('booking_updates', {
+                      'type': 'match_created',
+                      'sport_type': _selectedSport,
+                    });
+                  } catch (_) {}
+                  if (context.mounted) {
+                    context.push('/invite-players');
+                  }
+                },
                 child: const Text('Create Match'),
               ),
             ],

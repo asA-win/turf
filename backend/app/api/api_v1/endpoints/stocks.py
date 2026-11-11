@@ -4,6 +4,7 @@ from sqlalchemy.future import select
 from pydantic import BaseModel
 from app.db.session import get_db
 from app.db.models import StockShare, Turf
+from app.core.websocket_manager import ws_manager
 
 router = APIRouter()
 
@@ -55,6 +56,16 @@ async def buy_shares(trade: StockTradeRequest, db: AsyncSession = Depends(get_db
     
     stock.available_shares -= trade.shares
     await db.commit()
+
+    await ws_manager.broadcast("stocks", {
+        "type": "stock_traded",
+        "stock_id": stock.id,
+        "action": "buy",
+        "shares": trade.shares,
+        "remaining_shares": stock.available_shares,
+        "share_price": stock.share_price,
+    })
+
     return {"message": f"Successfully purchased {trade.shares} shares!", "remaining_shares": stock.available_shares}
 
 @router.post("/sell")
@@ -66,5 +77,15 @@ async def sell_shares(trade: StockTradeRequest, db: AsyncSession = Depends(get_d
     
     stock.available_shares += trade.shares
     await db.commit()
+
+    await ws_manager.broadcast("stocks", {
+        "type": "stock_traded",
+        "stock_id": stock.id,
+        "action": "sell",
+        "shares": trade.shares,
+        "remaining_shares": stock.available_shares,
+        "share_price": stock.share_price,
+    })
+
     return {"message": f"Successfully sold {trade.shares} shares!", "remaining_shares": stock.available_shares}
 

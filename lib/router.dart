@@ -157,7 +157,19 @@ GoRouter router(Ref ref) {
       GoRoute(path: '/welcome', builder: (context, state) => const WelcomeScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(path: '/signup', builder: (context, state) => const SignupScreen()),
-      GoRoute(path: '/otp-verification', builder: (context, state) => OtpVerificationScreen(phoneNumber: (state.extra as String?) ?? '+91 98765 43210')),
+      GoRoute(
+        path: '/otp-verification',
+        builder: (context, state) {
+          if (state.extra is Map<String, dynamic>) {
+            final data = state.extra as Map<String, dynamic>;
+            return OtpVerificationScreen(
+              phoneNumber: data['phone']?.toString() ?? '+91 98765 43210',
+              initialOtp: data['otp']?.toString(),
+            );
+          }
+          return OtpVerificationScreen(phoneNumber: (state.extra as String?) ?? '+91 98765 43210');
+        },
+      ),
       GoRoute(path: '/language-selection', builder: (context, state) => const LanguageSelectionScreen()),
       GoRoute(path: '/theme-selection', builder: (context, state) => const ThemeSelectionScreen()),
       GoRoute(path: '/location-access', builder: (context, state) => const LocationAccessScreen()),

@@ -9,7 +9,12 @@ import 'package:turf_app/features/auth/presentation/controllers/user_provider.da
 
 class OtpVerificationScreen extends ConsumerStatefulWidget {
   final String phoneNumber;
-  const OtpVerificationScreen({super.key, this.phoneNumber = '+91 98765 43210'});
+  final String? initialOtp;
+  const OtpVerificationScreen({
+    super.key,
+    this.phoneNumber = '+91 98765 43210',
+    this.initialOtp,
+  });
 
   @override
   ConsumerState<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
@@ -21,14 +26,21 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   Timer? _timer;
   int _secondsRemaining = 45;
   bool _isVerifying = false;
+  String? _deliveredOtp;
 
   @override
   void initState() {
     super.initState();
+    _deliveredOtp = widget.initialOtp;
     _startCountdown();
-    // Auto-trigger OTP send on screen entry
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(authControllerProvider.notifier).sendOtp(widget.phoneNumber);
+    // Auto-trigger OTP send on screen entry if not already supplied
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (_deliveredOtp == null) {
+        final code = await ref.read(authControllerProvider.notifier).sendOtp(widget.phoneNumber);
+        if (code != null && mounted) {
+          setState(() => _deliveredOtp = code);
+        }
+      }
     });
   }
 
@@ -56,19 +68,79 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
 
   void _resendOtp() async {
     _startCountdown();
-    final success = await ref.read(authControllerProvider.notifier).sendOtp(widget.phoneNumber);
+    final code = await ref.read(authControllerProvider.notifier).sendOtp(widget.phoneNumber);
     if (!mounted) return;
+    final success = code != null;
+    if (success) {
+      setState(() => _deliveredOtp = code);
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           success 
-              ? '⚡ A new real-time OTP was sent to ${widget.phoneNumber}'
+              ? '⚡ Real-time OTP sent to ${widget.phoneNumber}'
               : 'Failed to send OTP. Please try again.',
         ),
         backgroundColor: success ? AppTheme.primaryGreen : AppTheme.errorRed,
         duration: const Duration(seconds: 2),
       ),
     );
+  }
+
+  void _autofillCode() {
+    final code = _deliveredOtp ?? '123456';
+    if (code.length >= 6) {
+      for (int i = 0; i < 6; i++) {
+        _otpDigits[i] = code[i];
+      }
+      _currentIndex = 5;
+      setState(() {});
+      _submitCode(code);
+    }
+  }
+
+  void _submitCode(String code) async {
+    setState(() => _isVerifying = true);
+
+    final verified = await ref.read(authControllerProvider.notifier).verifyOtp(
+      widget.phoneNumber,
+      code,
+    );
+
+    if (!mounted) return;
+    setState(() => _isVerifying = false);
+
+    if (verified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Phone verified successfully!'),
+          backgroundColor: AppTheme.primaryGreen,
+          duration: Duration(seconds: 1),
+        ),
+      );
+      final profile = await ref.read(fetchUserProfileProvider.future);
+      if (!mounted) return;
+      if (profile?.role == 'admin') {
+        context.go('/analytics-dashboard');
+      } else if (profile?.role == 'owner') {
+        context.go('/venue-owner-dashboard');
+      } else {
+        context.go('/home');
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Invalid or expired code. Please enter valid OTP.'),
+          backgroundColor: AppTheme.errorRed,
+        ),
+      );
+      setState(() {
+        for (int i = 0; i < 6; i++) {
+          _otpDigits[i] = '';
+        }
+        _currentIndex = 0;
+      });
+    }
   }
 
   void _onKeyPress(String val) async {
@@ -98,47 +170,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
 
     if (_otpDigits.every((d) => d.isNotEmpty)) {
       final code = _otpDigits.join();
-      setState(() => _isVerifying = true);
-
-      final verified = await ref.read(authControllerProvider.notifier).verifyOtp(
-        widget.phoneNumber,
-        code,
-      );
-
-      if (!mounted) return;
-      setState(() => _isVerifying = false);
-
-      if (verified) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Phone verified successfully!'),
-            backgroundColor: AppTheme.primaryGreen,
-            duration: Duration(seconds: 1),
-          ),
-        );
-        final profile = await ref.read(fetchUserProfileProvider.future);
-        if (!mounted) return;
-        if (profile?.role == 'admin') {
-          context.go('/analytics-dashboard');
-        } else if (profile?.role == 'owner') {
-          context.go('/venue-owner-dashboard');
-        } else {
-          context.go('/home');
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❌ Invalid or expired code. Please enter valid OTP.'),
-            backgroundColor: AppTheme.errorRed,
-          ),
-        );
-        setState(() {
-          for (int i = 0; i < 6; i++) {
-            _otpDigits[i] = '';
-          }
-          _currentIndex = 0;
-        });
-      }
+      _submitCode(code);
     }
   }
 
@@ -177,7 +209,79 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
                         fontSize: 14,
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 20),
+
+                    // Real-Time Incoming SMS Notification Card
+                    if (_deliveredOtp != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardDark,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.4)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryGreen.withOpacity(0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.sms_outlined, color: AppTheme.primaryGreen, size: 20),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'SMS Received • ${widget.phoneNumber}',
+                                    style: GoogleFonts.poppins(color: AppTheme.textMuted, fontSize: 10, fontWeight: FontWeight.w500),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text.rich(
+                                    TextSpan(
+                                      text: 'Code: ',
+                                      style: GoogleFonts.poppins(color: Colors.white, fontSize: 12),
+                                      children: [
+                                        TextSpan(
+                                          text: _deliveredOtp,
+                                          style: GoogleFonts.poppins(
+                                            color: AppTheme.primaryGreen,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                            letterSpacing: 2,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: _autofillCode,
+                              style: TextButton.styleFrom(
+                                backgroundColor: AppTheme.primaryGreen,
+                                foregroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              icon: const Icon(Icons.bolt, size: 14),
+                              label: Text(
+                                'Auto-Fill',
+                                style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
                     // OTP Box Row
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,

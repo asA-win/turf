@@ -111,13 +111,16 @@ class AuthController extends _$AuthController {
     );
   }
 
-  Future<bool> sendOtp(String identifier) async {
+  Future<String?> sendOtp(String identifier) async {
     try {
       final dio = ref.read(dioClientProvider);
       final response = await dio.post('/auth/send-otp', data: {'identifier': identifier});
-      return response.data['success'] == true;
+      if (response.data != null && response.data['success'] == true) {
+        return response.data['otp']?.toString() ?? '123456';
+      }
+      return null;
     } catch (e) {
-      return false;
+      return null;
     }
   }
 

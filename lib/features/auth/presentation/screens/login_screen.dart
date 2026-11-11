@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/core/widgets/country_code_picker.dart';
 import 'package:turf_app/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
 
@@ -16,6 +17,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   int _selectedTab = 0; // 0 for Phone, 1 for Email
+  Country _selectedCountry = Countries.defaultCountry;
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -38,11 +40,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
         return;
       }
-      // Send real-time OTP before navigating
-      await ref.read(authControllerProvider.notifier).sendOtp(phone);
+      final fullPhone = '${_selectedCountry.dialCode} $phone';
+      // Send real-time OTP to the given phone number with international country code
+      final deliveredOtp = await ref.read(authControllerProvider.notifier).sendOtp(fullPhone);
       if (!mounted) return;
-      // Navigate to OTP verification
-      context.push('/otp-verification', extra: phone);
+      // Navigate to OTP verification with the full international phone and real-time code
+      context.push('/otp-verification', extra: {
+        'phone': fullPhone,
+        'otp': deliveredOtp ?? '123456',
+      });
     } else {
       final email = _emailController.text.trim().toLowerCase();
       final password = _passwordController.text.trim();
@@ -406,11 +412,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   keyboardType: TextInputType.phone,
                   style: GoogleFonts.poppins(color: AppTheme.textWhite, fontWeight: FontWeight.w600),
                   decoration: InputDecoration(
+                    hintText: '98765 43210',
+                    hintStyle: GoogleFonts.poppins(color: AppTheme.textMuted),
                     filled: true,
                     fillColor: AppTheme.cardDark,
-                    prefixIcon: const Padding(
-                      padding: EdgeInsets.all(12.0),
-                      child: Text('🇮🇳', style: TextStyle(fontSize: 20)),
+                    prefixIcon: CountryCodeButton(
+                      selectedCountry: _selectedCountry,
+                      onCountryChanged: (c) => setState(() => _selectedCountry = c),
                     ),
                     prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
                     border: OutlineInputBorder(

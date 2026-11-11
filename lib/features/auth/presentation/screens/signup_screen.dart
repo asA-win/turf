@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/core/widgets/country_code_picker.dart';
 import 'package:turf_app/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:turf_app/features/auth/presentation/controllers/auth_providers.dart';
 
@@ -16,6 +17,7 @@ class SignupScreen extends ConsumerStatefulWidget {
 }
 
 class _SignupScreenState extends ConsumerState<SignupScreen> {
+  Country _selectedCountry = Countries.defaultCountry;
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _contactController = TextEditingController();
@@ -187,7 +189,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 'firebase_uid': user.uid,
                 'email': _emailController.text.trim(),
                 'full_name': _usernameController.text.trim(),
-                'phone': _contactController.text.trim(),
+                'phone': '${_selectedCountry.dialCode} ${_contactController.text.trim()}',
               });
             }
           } catch (_) {}
@@ -249,7 +251,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 'firebase_uid': user.uid,
                 'email': _emailController.text.trim(),
                 'full_name': _usernameController.text.trim(),
-                'phone': _contactController.text.trim(),
+                'phone': '${_selectedCountry.dialCode} ${_contactController.text.trim()}',
               });
             }
           } catch (_) {}
@@ -333,9 +335,19 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               TextField(
                 controller: _contactController,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  hintText: 'Contact Number',
-                  prefixIcon: Icon(Icons.phone_outlined, color: AppTheme.primaryGreen),
+                style: GoogleFonts.poppins(color: AppTheme.textWhite, fontWeight: FontWeight.w600),
+                decoration: InputDecoration(
+                  hintText: '98765 43210',
+                  hintStyle: GoogleFonts.poppins(color: AppTheme.textMuted),
+                  prefixIcon: CountryCodeButton(
+                    selectedCountry: _selectedCountry,
+                    onCountryChanged: (c) => setState(() => _selectedCountry = c),
+                  ),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppTheme.cardBorder),
+                  ),
                 ),
               ),
               const SizedBox(height: 20),

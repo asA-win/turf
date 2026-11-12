@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/auth/presentation/controllers/auth_controller.dart';
-import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
 
 class OtpVerificationScreen extends ConsumerStatefulWidget {
   final String phoneNumber;

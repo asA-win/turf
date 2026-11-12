@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/widgets/bys_bottom_nav_bar.dart';
@@ -40,127 +39,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void dispose() {
     _profileRealtimeSub?.cancel();
     super.dispose();
-  }
-  Future<void> _handleVenueOwnerAccess(BuildContext context, String currentRole) async {
-    final isAlreadyOwner = currentRole.toLowerCase() == 'owner' || currentRole.toLowerCase() == 'admin';
-    if (isAlreadyOwner) {
-      context.push('/venue-owner-dashboard');
-      return;
-    }
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.cardDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.storefront_rounded, color: AppTheme.primaryGreen),
-            const SizedBox(width: 8),
-            Text('Become Venue Owner', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-          ],
-        ),
-        content: Text(
-          'Registering as a Venue Owner allows you to list turfs, configure pricing & slots, and monitor live bookings in real time.',
-          style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryGreen,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Upgrade Account'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && mounted) {
-      try {
-        final dio = ref.read(dioClientProvider);
-        await dio.post('/users/become-owner');
-        ref.invalidate(fetchUserProfileProvider);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Account upgraded to Venue Owner successfully!'),
-              backgroundColor: AppTheme.primaryGreen,
-            ),
-          );
-          context.push('/venue-owner-dashboard');
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error upgrading role: $e'), backgroundColor: AppTheme.errorRed),
-          );
-        }
-      }
-    }
-  }
-
-  Future<void> _handleAdminAccess(BuildContext context, String currentRole) async {
-    final isAdmin = currentRole.toLowerCase() == 'admin';
-    if (isAdmin) {
-      context.push('/admin-dashboard');
-      return;
-    }
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.cardDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.admin_panel_settings_rounded, color: Colors.amber),
-            const SizedBox(width: 8),
-            Text('Admin Control Panel', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-          ],
-        ),
-        content: Text(
-          'Access the Admin Control Panel to manage system users, view global analytics, and inspect platform operations.',
-          style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: GoogleFonts.poppins(color: AppTheme.textGrey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Access Admin'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && mounted) {
-      try {
-        final dio = ref.read(dioClientProvider);
-        await dio.post('/users/become-admin');
-        ref.invalidate(fetchUserProfileProvider);
-        if (mounted) {
-          context.push('/admin-dashboard');
-        }
-      } catch (e) {
-        if (mounted) {
-          context.push('/admin-dashboard');
-        }
-      }
-    }
   }
 
   @override

@@ -101,6 +101,13 @@ async def create_turf(
     user_result = await db.execute(select(UserModel).filter(UserModel.firebase_uid == firebase_uid))
     db_user = user_result.scalar_one_or_none()
     
+    # Strictly enforce: Only Turf Owners and Admins have permission to create turfs
+    if db_user and db_user.role not in ["admin", "owner"]:
+        raise HTTPException(
+            status_code=403, 
+            detail="Access denied: Customers/players do not have permission to create venues. Only Turf Owners and Admins can create turfs."
+        )
+    
     turf_data = turf.model_dump()
     if db_user:
         turf_data["owner_id"] = db_user.id

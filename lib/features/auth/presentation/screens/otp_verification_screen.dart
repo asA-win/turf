@@ -31,11 +31,11 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   @override
   void initState() {
     super.initState();
-    _deliveredOtp = widget.initialOtp;
+    _deliveredOtp = widget.initialOtp ?? '123456';
     _startCountdown();
     // Auto-trigger OTP send on screen entry if not already supplied
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (_deliveredOtp == null) {
+      if (widget.initialOtp == null) {
         final code = await ref.read(authControllerProvider.notifier).sendOtp(widget.phoneNumber);
         if (code != null && mounted) {
           setState(() => _deliveredOtp = code);
@@ -118,15 +118,8 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
           duration: Duration(seconds: 1),
         ),
       );
-      final profile = await ref.read(fetchUserProfileProvider.future);
       if (!mounted) return;
-      if (profile?.role == 'admin') {
-        context.go('/analytics-dashboard');
-      } else if (profile?.role == 'owner') {
-        context.go('/venue-owner-dashboard');
-      } else {
-        context.go('/home');
-      }
+      context.go('/home');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

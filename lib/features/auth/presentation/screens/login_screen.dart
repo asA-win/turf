@@ -44,10 +44,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Send real-time OTP to the given phone number with international country code
       final deliveredOtp = await ref.read(authControllerProvider.notifier).sendOtp(fullPhone);
       if (!mounted) return;
+      final code = deliveredOtp ?? '123456';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('⚡ Verification code for $fullPhone: $code'),
+          backgroundColor: AppTheme.primaryGreen,
+          duration: const Duration(seconds: 3),
+        ),
+      );
       // Navigate to OTP verification with the full international phone and real-time code
       context.push('/otp-verification', extra: {
         'phone': fullPhone,
-        'otp': deliveredOtp ?? '123456',
+        'otp': code,
       });
     } else {
       final email = _emailController.text.trim().toLowerCase();

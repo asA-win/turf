@@ -7,12 +7,17 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:600790618967:android:de105f15d2db0bbf60e412",
+        "mobilesdk_app_id": "1:600790618967:android:4ab603178185168860e412",
         "android_client_info": {
-          "package_name": "com.turf.turf_app"
+          "package_name": "com.turf.partner.turf_owner_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "600790618967-ukm8emm23umrb7obp8s0vpo1lp7tn8hb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCt3fgu96oNwsFKkljFhxuAJ27Rt-9hPzM"
@@ -20,7 +25,55 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "600790618967-ukm8emm23umrb7obp8s0vpo1lp7tn8hb.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "600790618967-5jm5srkv5vtv9jtgrj3fattqig1fn8k6.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.turf.turfApp"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:600790618967:android:de105f15d2db0bbf60e412",
+        "android_client_info": {
+          "package_name": "com.turf.turf_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "600790618967-ukm8emm23umrb7obp8s0vpo1lp7tn8hb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCt3fgu96oNwsFKkljFhxuAJ27Rt-9hPzM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "600790618967-ukm8emm23umrb7obp8s0vpo1lp7tn8hb.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "600790618967-5jm5srkv5vtv9jtgrj3fattqig1fn8k6.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.turf.turfApp"
+              }
+            }
+          ]
         }
       }
     }

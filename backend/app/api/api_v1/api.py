@@ -1,11 +1,12 @@
 from fastapi import APIRouter
 from app.api.api_v1.endpoints import (
     turfs, users, bookings, slots, favorites, reviews, upload, matches, offers,
-    tournaments, teams, community, rentals, coaches, parking, stocks, ws, auth
+    tournaments, teams, community, rentals, coaches, parking, stocks, ws, auth, admin
 )
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(turfs.router, prefix="/turfs", tags=["turfs"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(bookings.router, prefix="/bookings", tags=["bookings"])

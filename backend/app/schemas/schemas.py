@@ -16,6 +16,10 @@ class TurfBase(BaseModel):
     equipment_provided: Optional[str] = None
     turf_type: Optional[str] = "Artificial"
     owner_id: Optional[int] = None
+    status: Optional[str] = "pending" # 'pending', 'approved', 'rejected'
+    rejection_reason: Optional[str] = None
+    document_url: Optional[str] = None
+    contact_phone: Optional[str] = None
 
 class TurfCreate(TurfBase):
     pass
@@ -24,6 +28,7 @@ class Turf(TurfBase):
     id: int
     average_rating: float = 0.0
     total_reviews: int = 0
+    created_at: Optional[datetime] = None
     class Config:
         from_attributes = True
 
@@ -50,6 +55,10 @@ class UserBase(BaseModel):
     email: Optional[str] = None
     full_name: Optional[str] = "User"
     phone: Optional[str] = None
+    owner_status: Optional[str] = "pending" # 'pending', 'approved', 'rejected', 'suspended'
+    rejection_reason: Optional[str] = None
+    business_name: Optional[str] = None
+    city: Optional[str] = None
 
 class UserCreate(UserBase):
     firebase_uid: str
@@ -60,6 +69,7 @@ class UserUpdateRole(BaseModel):
 class User(UserBase):
     id: int
     role: str
+    created_at: Optional[datetime] = None
     class Config:
         from_attributes = True
 
@@ -160,6 +170,23 @@ class FCMToken(FCMTokenBase):
 class SendOTPRequest(BaseModel):
     identifier: str # phone or email
 
+class RegisterOwnerRequest(BaseModel):
+    business_name: str
+    owner_name: str
+    email: str
+    phone: str
+    password: str
+    city: Optional[str] = "Bangalore"
+    turf_name: Optional[str] = None
+    hourly_price: Optional[float] = 1200.0
+    sports: Optional[str] = "Football, Cricket"
+    amenities: Optional[str] = "Floodlights, Parking, Drinking Water"
+    surface_type: Optional[str] = "FIFA Grade Artificial Turf"
+    document_url: Optional[str] = None
+    image_url: Optional[str] = None
+    pitch_info: Optional[str] = "Standard Match Pitch"
+    description: Optional[str] = None
+
 class VerifyOTPRequest(BaseModel):
     identifier: str
     code: str
@@ -222,6 +249,29 @@ class TournamentCreate(TournamentBase):
 class Tournament(TournamentBase):
     id: int
     start_date: datetime
+    class Config:
+        from_attributes = True
+
+# --- Admin Panel Action Schemas ---
+class TurfApprovalAction(BaseModel):
+    reason: Optional[str] = None
+
+class OwnerStatusAction(BaseModel):
+    status: str # 'active', 'suspended', 'rejected', 'approved'
+    reason: Optional[str] = None
+
+class AdminChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class AdminAuditLogResponse(BaseModel):
+    id: int
+    admin_id: Optional[int] = None
+    action: str
+    target_type: str
+    target_id: Optional[int] = None
+    details: str
+    created_at: datetime
     class Config:
         from_attributes = True
 

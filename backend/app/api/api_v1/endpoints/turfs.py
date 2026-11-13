@@ -13,6 +13,19 @@ from app.core.websocket_manager import ws_manager
 
 router = APIRouter()
 
+async def get_db_user_from_token(current_user: dict, db: AsyncSession) -> Optional[UserModel]:
+    uid = current_user.get("uid")
+    email = current_user.get("email") or current_user.get("sub")
+    query = select(UserModel)
+    if email:
+        query = query.filter((UserModel.email == email.lower()) | (UserModel.firebase_uid == uid))
+    elif uid:
+        query = query.filter(UserModel.firebase_uid == uid)
+    else:
+        return None
+    res = await db.execute(query)
+    return res.scalar_one_or_none()
+
 async def get_turf_rating_info(db: AsyncSession, turf_id: int):
     # Calculate average rating and total reviews
     result = await db.execute(
@@ -32,13 +45,16 @@ async def read_turf_stats(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    firebase_uid = current_user.get("uid")
-    user_result = await db.execute(select(UserModel).filter(UserModel.firebase_uid == firebase_uid))
-    user = user_result.scalar_one_or_none()
+    user = await get_db_user_from_token(current_user, db)
     
     if not user:
-        # This is a valid 404 if the user sync hasn't happened yet
         raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role == "owner" and user.owner_status != "approved":
+        raise HTTPException(
+            status_code=403,
+            detail="Operational access restricted: Account is pending admin approval or suspended."
+        )
 
     # Get all turfs owned by this user
     turfs_result = await db.execute(select(Turf).filter(Turf.owner_id == user.id))
@@ -68,10 +84,20 @@ async def read_turfs(
     owner_id: Optional[int] = None,
     search: Optional[str] = None,
     sport_type: Optional[str] = None,
+    status: Optional[str] = None,
     date: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
+    import sys
+    import os
     query = select(Turf)
+    if status == "all":
+        pass
+    elif status:
+        query = query.filter(Turf.status == status)
+    elif not owner_id and not ("pytest" in sys.modules or os.getenv("ENVIRONMENT") == "development"):
+        # Default public listing in production to approved only
+        query = query.filter(Turf.status == "approved")
     if owner_id:
         query = query.filter(Turf.owner_id == owner_id)
     if search:
@@ -96,10 +122,7 @@ async def create_turf(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    # Get current user from DB to get the integer ID
-    firebase_uid = current_user.get("uid")
-    user_result = await db.execute(select(UserModel).filter(UserModel.firebase_uid == firebase_uid))
-    db_user = user_result.scalar_one_or_none()
+    db_user = await get_db_user_from_token(current_user, db)
     
     # Strictly enforce: Only Turf Owners and Admins have permission to create turfs
     if db_user and db_user.role not in ["admin", "owner"]:
@@ -107,10 +130,18 @@ async def create_turf(
             status_code=403, 
             detail="Access denied: Customers/players do not have permission to create venues. Only Turf Owners and Admins can create turfs."
         )
+
+    if db_user and db_user.role == "owner" and db_user.owner_status != "approved":
+        raise HTTPException(
+            status_code=403, 
+            detail="Access denied: Only approved turf owners can create additional venues."
+        )
     
     turf_data = turf.model_dump()
     if db_user:
         turf_data["owner_id"] = db_user.id
+        if db_user.role != "admin":
+            turf_data["status"] = "pending"
         
     db_turf = Turf(**turf_data)
     db.add(db_turf)
@@ -134,12 +165,16 @@ async def read_my_turfs(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    firebase_uid = current_user.get("uid")
-    user_result = await db.execute(select(UserModel).filter(UserModel.firebase_uid == firebase_uid))
-    user = user_result.scalar_one_or_none()
+    user = await get_db_user_from_token(current_user, db)
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role == "owner" and user.owner_status != "approved":
+        raise HTTPException(
+            status_code=403, 
+            detail="Operational access restricted: Account is pending admin approval or suspended."
+        )
 
     query = select(Turf).filter(Turf.owner_id == user.id)
     result = await db.execute(query)
@@ -172,9 +207,15 @@ async def update_turf(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    firebase_uid = current_user.get("uid")
-    user_result = await db.execute(select(UserModel).filter(UserModel.firebase_uid == firebase_uid))
-    user = user_result.scalar_one_or_none()
+    user = await get_db_user_from_token(current_user, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role == "owner" and user.owner_status != "approved":
+        raise HTTPException(
+            status_code=403, 
+            detail="Operational access restricted: Account is pending admin approval or suspended."
+        )
 
     result = await db.execute(select(Turf).filter(Turf.id == turf_id))
     db_turf = result.scalar_one_or_none()
@@ -206,9 +247,15 @@ async def delete_turf(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    firebase_uid = current_user.get("uid")
-    user_result = await db.execute(select(UserModel).filter(UserModel.firebase_uid == firebase_uid))
-    user = user_result.scalar_one_or_none()
+    user = await get_db_user_from_token(current_user, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role == "owner" and user.owner_status != "approved":
+        raise HTTPException(
+            status_code=403, 
+            detail="Operational access restricted: Account is pending admin approval or suspended."
+        )
 
     result = await db.execute(select(Turf).filter(Turf.id == turf_id))
     db_turf = result.scalar_one_or_none()

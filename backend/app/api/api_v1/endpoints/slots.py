@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.db.session import get_db
 from app.db.models import Slot, Turf, User
@@ -13,7 +13,18 @@ from app.core.websocket_manager import ws_manager
 
 router = APIRouter()
 
-from datetime import timedelta
+async def get_db_user_from_token(current_user: dict, db: AsyncSession) -> Optional[User]:
+    uid = current_user.get("uid")
+    email = current_user.get("email") or current_user.get("sub")
+    query = select(User)
+    if email:
+        query = query.filter((User.email == email.lower()) | (User.firebase_uid == uid))
+    elif uid:
+        query = query.filter(User.firebase_uid == uid)
+    else:
+        return None
+    res = await db.execute(query)
+    return res.scalar_one_or_none()
 
 @router.get("/", response_model=List[SlotSchema])
 async def read_slots(
@@ -24,6 +35,7 @@ async def read_slots(
     db: AsyncSession = Depends(get_db)
 ):
     query = select(Slot).filter(Slot.turf_id == turf_id)
+    target_date = None
     
     if date:
         try:
@@ -33,17 +45,42 @@ async def read_slots(
             pass # Ignore invalid date format
             
     result = await db.execute(query.order_by(Slot.start_time).offset(skip).limit(limit))
-    slots = result.scalars().all()
+    slots = list(result.scalars().all())
     
-    # Check for expired locks
+    # Auto-generate operational slots (06:00 - 23:00) if none exist yet for this turf on this date
+    if not slots and turf_id:
+        turf_check = await db.execute(select(Turf).filter(Turf.id == turf_id))
+        turf = turf_check.scalar_one_or_none()
+        if turf:
+            day_to_generate = target_date if target_date else datetime.utcnow().date()
+            new_slots = []
+            for hour in range(6, 23):
+                start_dt = datetime.combine(day_to_generate, datetime.min.time()).replace(hour=hour)
+                end_dt = start_dt + timedelta(hours=1)
+                s = Slot(
+                    turf_id=turf_id,
+                    start_time=start_dt,
+                    end_time=end_dt,
+                    is_booked=False,
+                    capacity=10,
+                    current_bookings=0
+                )
+                db.add(s)
+                new_slots.append(s)
+            try:
+                await db.commit()
+                for s in new_slots:
+                    await db.refresh(s)
+                slots = new_slots
+            except Exception:
+                await db.rollback()
+
+    # Check for expired temporary checkout locks (preserve owner administrative blocks > 24h)
     now = datetime.utcnow()
     for slot in slots:
         if slot.locked_until and slot.locked_until < now:
             slot.locked_until = None
             slot.locked_by = None
-            # Note: We don't commit here to avoid slowing down GET requests, 
-            # the status is just adjusted in the response. 
-            # Actual cleanup happens during booking or explicit lock.
             
     return slots
 
@@ -53,9 +90,9 @@ async def lock_slot(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    firebase_uid = current_user.get("uid")
-    user_result = await db.execute(select(User).filter(User.firebase_uid == firebase_uid))
-    user = user_result.scalar_one_or_none()
+    user = await get_db_user_from_token(current_user, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
 
     # Use with_for_update to prevent race conditions during locking
     result = await db.execute(
@@ -99,10 +136,15 @@ async def create_slot(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    # Verify authorization (only owner of the turf or admin)
-    firebase_uid = current_user.get("uid")
-    user_result = await db.execute(select(User).filter(User.firebase_uid == firebase_uid))
-    user = user_result.scalar_one_or_none()
+    user = await get_db_user_from_token(current_user, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    if user.role == "owner" and user.owner_status != "approved":
+        raise HTTPException(
+            status_code=403,
+            detail="Operational access restricted: Account is pending admin approval or suspended."
+        )
 
     turf_result = await db.execute(select(Turf).filter(Turf.id == slot.turf_id))
     turf = turf_result.scalar_one_or_none()
@@ -136,9 +178,15 @@ async def toggle_slot(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    firebase_uid = current_user.get("uid")
-    user_result = await db.execute(select(User).filter(User.firebase_uid == firebase_uid))
-    user = user_result.scalar_one_or_none()
+    user = await get_db_user_from_token(current_user, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    if user.role == "owner" and user.owner_status != "approved":
+        raise HTTPException(
+            status_code=403,
+            detail="Operational access restricted: Account is pending admin approval or suspended."
+        )
 
     slot_result = await db.execute(select(Slot).filter(Slot.id == slot_id))
     slot = slot_result.scalar_one_or_none()
@@ -149,10 +197,22 @@ async def toggle_slot(
     turf_result = await db.execute(select(Turf).filter(Turf.id == slot.turf_id))
     turf = turf_result.scalar_one_or_none()
 
-    if user.role != "admin" and turf.owner_id != user.id:
+    if user.role != "admin" and turf and turf.owner_id != user.id:
         raise HTTPException(status_code=403, detail="Not authorized to manage this slot")
 
-    slot.is_booked = not slot.is_booked
+    now = datetime.utcnow()
+    # Toggle slot administrative block (locks slot for 30 days or clears it)
+    if slot.locked_until and slot.locked_until > now:
+        # Currently blocked -> Unblock
+        slot.locked_until = None
+        slot.locked_by = None
+        is_blocked = False
+    else:
+        # Currently open -> Block for administrative/maintenance hold
+        slot.locked_until = now + timedelta(days=30)
+        slot.locked_by = user.id
+        is_blocked = True
+
     await db.commit()
     await db.refresh(slot)
 
@@ -161,7 +221,9 @@ async def toggle_slot(
         "type": "slot_toggled",
         "slot_id": slot.id,
         "turf_id": slot.turf_id,
-        "is_booked": slot.is_booked
+        "is_blocked": is_blocked,
+        "is_booked": slot.is_booked,
+        "locked_until": slot.locked_until.isoformat() if slot.locked_until else None
     })
 
     return slot

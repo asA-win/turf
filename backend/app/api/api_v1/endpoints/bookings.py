@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from typing import List
+from typing import List, Optional
+from datetime import datetime, timedelta
+import re
 from pydantic import BaseModel
 
 from app.db.session import get_db
@@ -13,6 +15,29 @@ from app.core.websocket_manager import ws_manager
 from app.core.notifications import send_to_user
 
 router = APIRouter()
+
+async def get_db_user_from_token(current_user: dict, db: AsyncSession) -> Optional[User]:
+    uid = current_user.get("uid")
+    email = current_user.get("email") or current_user.get("sub")
+    query = select(User)
+    if email:
+        query = query.filter((User.email == email.lower()) | (User.firebase_uid == uid))
+    elif uid:
+        query = query.filter(User.firebase_uid == uid)
+    else:
+        return None
+    res = await db.execute(query)
+    return res.scalar_one_or_none()
+
+class ManualWalkInBookingRequest(BaseModel):
+    turf_id: int
+    customer_name: str
+    customer_phone: str
+    slot_time: str
+    date: Optional[str] = None
+    sport: str = "Football"
+    amount: float = 1200.0
+    payment_mode: str = "Cash Collected"
 
 @router.get("/my-bookings", response_model=List[BookingSchema])
 async def read_my_bookings(
@@ -183,34 +208,53 @@ async def create_booking(
 
 @router.get("/requests")
 async def get_booking_requests(
+    turf_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    result = await db.execute(
+    user = await get_db_user_from_token(current_user, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role == "owner" and user.owner_status != "approved":
+        raise HTTPException(
+            status_code=403,
+            detail="Operational access restricted: Account is pending admin approval or suspended."
+        )
+
+    query = (
         select(Booking, Slot, Turf, User)
         .outerjoin(Slot, Booking.slot_id == Slot.id)
         .outerjoin(Turf, Booking.turf_id == Turf.id)
         .outerjoin(User, Booking.user_id == User.id)
-        .order_by(Booking.id.desc())
-        .limit(30)
     )
+
+    if user.role not in ["admin"]:
+        query = query.filter(Turf.owner_id == user.id)
+
+    if turf_id:
+        query = query.filter(Booking.turf_id == turf_id)
+
+    result = await db.execute(query.order_by(Booking.id.desc()).limit(100))
     rows = result.all()
     requests = []
-    for booking, slot, turf, user in rows:
+    for booking, slot, turf, b_user in rows:
         slot_str = "Evening Slot"
         if slot and slot.start_time and slot.end_time:
             slot_str = f"{slot.start_time.strftime('%I:%M %p')} - {slot.end_time.strftime('%I:%M %p')}"
         requests.append({
             "id": booking.id,
-            "name": user.full_name or user.email if user else "Player",
+            "name": b_user.full_name or b_user.email if b_user else "Player",
+            "phone": b_user.phone if b_user and b_user.phone else "+91 98765 43210",
             "turf_name": turf.name if turf else "Turf Arena",
             "turf_id": booking.turf_id,
             "slot_id": booking.slot_id,
             "slot": slot_str,
-            "sport": "Football (6v6)",
+            "sport": "Football",
             "price": f"₹{int(booking.total_price)}",
             "players": f"{slot.capacity if slot else 10} Players",
             "status": booking.status or "confirmed",
+            "booking_type": booking.booking_type or "full",
         })
     return requests
 
@@ -224,10 +268,28 @@ async def respond_booking_request(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    result = await db.execute(select(Booking).filter(Booking.id == booking_id))
-    booking = result.scalar_one_or_none()
-    if not booking:
+    user = await get_db_user_from_token(current_user, db)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role == "owner" and user.owner_status != "approved":
+        raise HTTPException(
+            status_code=403,
+            detail="Operational access restricted: Account is pending admin approval or suspended."
+        )
+
+    result = await db.execute(
+        select(Booking, Turf)
+        .outerjoin(Turf, Booking.turf_id == Turf.id)
+        .filter(Booking.id == booking_id)
+    )
+    row = result.first()
+    if not row:
         raise HTTPException(status_code=404, detail="Booking not found")
+    booking, turf = row
+
+    if user.role != "admin" and turf and turf.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to manage bookings for this turf")
 
     new_status = "confirmed" if req.action == "accept" else "declined"
     booking.status = new_status
@@ -266,6 +328,110 @@ async def respond_booking_request(
     })
 
     return {"message": f"Booking {new_status}", "booking_id": booking_id, "status": new_status}
+
+@router.post("/manual")
+async def create_manual_walkin_booking(
+    req: ManualWalkInBookingRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a persistent walk-in booking for an owner's venue."""
+    owner = await get_db_user_from_token(current_user, db)
+    if not owner:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if owner.role == "owner" and owner.owner_status != "approved":
+        raise HTTPException(
+            status_code=403,
+            detail="Operational access restricted: Account is pending admin approval or suspended."
+        )
+
+    turf_result = await db.execute(select(Turf).filter(Turf.id == req.turf_id))
+    turf = turf_result.scalar_one_or_none()
+    if not turf:
+        raise HTTPException(status_code=404, detail="Turf not found")
+
+    if owner.role != "admin" and turf.owner_id != owner.id:
+        raise HTTPException(status_code=403, detail="Not authorized to create manual bookings for this turf")
+
+    clean_phone = re.sub(r'[^0-9+]', '', req.customer_phone)
+    cust_query = await db.execute(select(User).filter((User.phone == clean_phone) | (User.phone == req.customer_phone)))
+    customer = cust_query.scalar_one_or_none()
+    if not customer:
+        customer = User(
+            firebase_uid=f"walkin_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{clean_phone[-4:] if len(clean_phone)>=4 else '0000'}",
+            full_name=req.customer_name,
+            phone=clean_phone if clean_phone else req.customer_phone,
+            role="user",
+            is_verified=True
+        )
+        db.add(customer)
+        await db.flush()
+
+    now = datetime.utcnow()
+    slot_query = await db.execute(select(Slot).filter(Slot.turf_id == req.turf_id, Slot.is_booked == False))
+    available_slot = slot_query.scalars().first()
+    if not available_slot:
+        available_slot = Slot(
+            turf_id=req.turf_id,
+            start_time=now,
+            end_time=now + timedelta(hours=1),
+            is_booked=True,
+            capacity=10,
+            current_bookings=10
+        )
+        db.add(available_slot)
+        await db.flush()
+    else:
+        available_slot.is_booked = True
+        available_slot.current_bookings = available_slot.capacity
+
+    new_booking = Booking(
+        user_id=customer.id,
+        turf_id=req.turf_id,
+        slot_id=available_slot.id,
+        total_price=req.amount,
+        status="confirmed",
+        booking_type="walk_in",
+        booking_date=now
+    )
+    db.add(new_booking)
+    await db.commit()
+    await db.refresh(new_booking)
+
+    await ws_manager.broadcast("booking_requests", {
+        "type": "new_booking_request",
+        "id": new_booking.id,
+        "name": f"{req.customer_name} (Walk-in)",
+        "turf_id": req.turf_id,
+        "turf_name": turf.name,
+        "slot": req.slot_time,
+        "sport": req.sport,
+        "price": f"₹{int(req.amount)}",
+        "status": "confirmed",
+    })
+    await ws_manager.broadcast("booking_updates", {
+        "type": "booking_created",
+        "booking_id": new_booking.id,
+        "turf_id": req.turf_id,
+    })
+
+    return {
+        "success": True,
+        "booking_id": new_booking.id,
+        "message": f"Walk-in booking created for {req.customer_name}",
+        "booking": {
+            "id": new_booking.id,
+            "turf_id": req.turf_id,
+            "turf_name": turf.name,
+            "customer_name": req.customer_name,
+            "customer_phone": req.customer_phone,
+            "slot_time": req.slot_time,
+            "sport": req.sport,
+            "amount": req.amount,
+            "status": "confirmed"
+        }
+    }
 
 @router.post("/{booking_id}/cancel")
 async def cancel_booking(

@@ -9,10 +9,15 @@ import 'package:turf_app/features/auth/presentation/controllers/auth_controller.
 class OtpVerificationScreen extends ConsumerStatefulWidget {
   final String phoneNumber;
   final String? initialOtp;
+  final String? verificationId;
+  final bool isFirebase;
+
   const OtpVerificationScreen({
     super.key,
     this.phoneNumber = '+91 98765 43210',
     this.initialOtp,
+    this.verificationId,
+    this.isFirebase = false,
   });
 
   @override
@@ -26,18 +31,27 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   int _secondsRemaining = 45;
   bool _isVerifying = false;
   String? _deliveredOtp;
+  String? _verificationId;
 
   @override
   void initState() {
     super.initState();
     _deliveredOtp = widget.initialOtp ?? '123456';
+    _verificationId = widget.verificationId;
     _startCountdown();
     // Auto-trigger OTP send on screen entry if not already supplied
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (widget.initialOtp == null) {
-        final code = await ref.read(authControllerProvider.notifier).sendOtp(widget.phoneNumber);
-        if (code != null && mounted) {
-          setState(() => _deliveredOtp = code);
+      if (widget.initialOtp == null && _verificationId == null) {
+        final res = await ref.read(authControllerProvider.notifier).sendOtpUnified(widget.phoneNumber);
+        if (mounted) {
+          setState(() {
+            if (res['verificationId'] != null) {
+              _verificationId = res['verificationId'].toString();
+            }
+            if (res['otp'] != null) {
+              _deliveredOtp = res['otp'].toString();
+            }
+          });
         }
       }
     });
@@ -67,21 +81,24 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
 
   void _resendOtp() async {
     _startCountdown();
-    final code = await ref.read(authControllerProvider.notifier).sendOtp(widget.phoneNumber);
+    final res = await ref.read(authControllerProvider.notifier).sendOtpUnified(widget.phoneNumber);
     if (!mounted) return;
-    final success = code != null;
-    if (success) {
-      setState(() => _deliveredOtp = code);
+    final isFb = res['method'] == 'firebase_sms';
+    if (res['verificationId'] != null) {
+      _verificationId = res['verificationId'].toString();
+    }
+    if (res['otp'] != null) {
+      setState(() => _deliveredOtp = res['otp'].toString());
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          success 
-              ? '⚡ Real-time OTP sent to ${widget.phoneNumber}'
-              : 'Failed to send OTP. Please try again.',
+          isFb 
+              ? '📲 SMS sent to ${widget.phoneNumber} via Firebase'
+              : '⚡ Real-time OTP sent to ${widget.phoneNumber}',
         ),
-        backgroundColor: success ? AppTheme.primaryGreen : AppTheme.errorRed,
-        duration: const Duration(seconds: 2),
+        backgroundColor: AppTheme.primaryGreen,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -104,6 +121,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     final verified = await ref.read(authControllerProvider.notifier).verifyOtp(
       widget.phoneNumber,
       code,
+      verificationId: _verificationId,
     );
 
     if (!mounted) return;

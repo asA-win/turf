@@ -165,6 +165,8 @@ GoRouter router(Ref ref) {
             return OtpVerificationScreen(
               phoneNumber: data['phone']?.toString() ?? '+91 98765 43210',
               initialOtp: data['otp']?.toString(),
+              verificationId: data['verificationId']?.toString(),
+              isFirebase: data['isFirebase'] == true,
             );
           }
           return OtpVerificationScreen(phoneNumber: (state.extra as String?) ?? '+91 98765 43210');

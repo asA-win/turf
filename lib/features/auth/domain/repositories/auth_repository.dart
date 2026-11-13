@@ -14,4 +14,18 @@ abstract class AuthRepository {
   Future<Either<Failure, void>> signOut();
   
   Future<Either<Failure, UserCredential>> signInWithGoogle();
+
+  Future<void> sendPhoneOtp({
+    required String phoneNumber,
+    required Function(String verificationId, int? resendToken) onCodeSent,
+    required Function(FirebaseAuthException error) onVerificationFailed,
+    required Function(PhoneAuthCredential credential) onVerificationCompleted,
+    required Function(String verificationId) onCodeAutoRetrievalTimeout,
+    int? resendToken,
+  });
+
+  Future<Either<Failure, UserCredential>> verifyPhoneOtp({
+    required String verificationId,
+    required String smsCode,
+  });
 }

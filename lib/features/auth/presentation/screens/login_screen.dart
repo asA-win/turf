@@ -41,21 +41,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
       final fullPhone = '${_selectedCountry.dialCode} $phone';
-      // Send real-time OTP to the given phone number with international country code
-      final deliveredOtp = await ref.read(authControllerProvider.notifier).sendOtp(fullPhone);
-      if (!mounted) return;
-      final code = deliveredOtp ?? '123456';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('⚡ Verification code for $fullPhone: $code'),
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Text('Dispatching SMS to $fullPhone...')),
+            ],
+          ),
           backgroundColor: AppTheme.primaryGreen,
-          duration: const Duration(seconds: 3),
+          duration: const Duration(seconds: 2),
         ),
       );
+
+      final result = await ref.read(authControllerProvider.notifier).sendOtpUnified(fullPhone);
+      if (!mounted) return;
+
+      final isFirebaseSms = result['method'] == 'firebase_sms';
+      final verificationId = result['verificationId']?.toString();
+      final code = result['otp']?.toString() ?? '123456';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isFirebaseSms
+                ? '📲 Firebase SMS dispatched to $fullPhone!'
+                : '⚡ Verification code for $fullPhone: $code',
+          ),
+          backgroundColor: AppTheme.primaryGreen,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+
       // Navigate to OTP verification with the full international phone and real-time code
       context.push('/otp-verification', extra: {
         'phone': fullPhone,
         'otp': code,
+        'verificationId': verificationId,
+        'isFirebase': isFirebaseSms,
       });
     } else {
       final email = _emailController.text.trim().toLowerCase();

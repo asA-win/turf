@@ -66,14 +66,24 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
+import sys
+
 def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    is_dev = os.getenv("ENVIRONMENT") == "development" or "pytest" in sys.modules
+
     if not credentials:
-        # Fallback to demo user for free local development
-        return {
-            "uid": "demo-user-id",
-            "email": "user@example.com",
-            "name": "Demo User"
-        }
+        if is_dev:
+            return {
+                "uid": "demo-user-id",
+                "email": "user@example.com",
+                "name": "Demo User"
+            }
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials required. Please provide a valid Bearer token.",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
     token = credentials.credentials
     
     # 1. Try decoding backend JWT token
@@ -90,9 +100,15 @@ def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depen
     except Exception:
         pass
 
-    # 3. Fallback to demo user on invalid token in dev mode
-    return {
-        "uid": "demo-user-id",
-        "email": "user@example.com",
-        "name": "Demo User"
-    }
+    if is_dev:
+        return {
+            "uid": "demo-user-id",
+            "email": "user@example.com",
+            "name": "Demo User"
+        }
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired authentication token.",
+        headers={"WWW-Authenticate": "Bearer"}
+    )

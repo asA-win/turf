@@ -86,4 +86,43 @@ class AuthRepositoryImpl implements AuthRepository {
       return left(AuthFailure(e.toString()));
     }
   }
+
+  @override
+  Future<void> sendPhoneOtp({
+    required String phoneNumber,
+    required Function(String verificationId, int? resendToken) onCodeSent,
+    required Function(FirebaseAuthException error) onVerificationFailed,
+    required Function(PhoneAuthCredential credential) onVerificationCompleted,
+    required Function(String verificationId) onCodeAutoRetrievalTimeout,
+    int? resendToken,
+  }) async {
+    await _auth.verifyPhoneNumber(
+      phoneNumber: phoneNumber,
+      verificationCompleted: onVerificationCompleted,
+      verificationFailed: onVerificationFailed,
+      codeSent: onCodeSent,
+      codeAutoRetrievalTimeout: onCodeAutoRetrievalTimeout,
+      forceResendingToken: resendToken,
+      timeout: const Duration(seconds: 60),
+    );
+  }
+
+  @override
+  Future<Either<Failure, UserCredential>> verifyPhoneOtp({
+    required String verificationId,
+    required String smsCode,
+  }) async {
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
+      final userCredential = await _auth.signInWithCredential(credential);
+      return right(userCredential);
+    } on FirebaseAuthException catch (e) {
+      return left(AuthFailure(e.message ?? 'Phone verification failed'));
+    } catch (e) {
+      return left(AuthFailure(e.toString()));
+    }
+  }
 }

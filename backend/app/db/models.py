@@ -10,10 +10,15 @@ class User(Base):
     firebase_uid = Column(String, unique=True, index=True)
     email = Column(String, unique=True, index=True)
     full_name = Column(String)
-    role = Column(String, default="user") # 'user' or 'admin'
+    role = Column(String, default="user") # 'user', 'owner', 'admin'
     phone = Column(String, nullable=True)
     hashed_password = Column(String, nullable=True)
     is_verified = Column(Boolean, default=False)
+    owner_status = Column(String, default="pending") # 'pending', 'approved', 'rejected', 'suspended'
+    rejection_reason = Column(String, nullable=True)
+    business_name = Column(String, nullable=True)
+    city = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class Turf(Base):
     __tablename__ = "turfs"
@@ -32,6 +37,11 @@ class Turf(Base):
     equipment_provided = Column(String, nullable=True)
     turf_type = Column(String, default="Artificial")
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    status = Column(String, default="pending") # 'pending', 'approved', 'rejected'
+    rejection_reason = Column(String, nullable=True)
+    document_url = Column(String, nullable=True)
+    contact_phone = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     owner = relationship("User")
     slots = relationship("Slot", back_populates="turf")
@@ -246,5 +256,18 @@ class Referral(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     referrer = relationship("User")
+
+class AdminAuditLog(Base):
+    __tablename__ = "admin_audit_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    admin_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    action = Column(String, index=True) # 'APPROVE_TURF', 'REJECT_TURF', 'SUSPEND_OWNER', 'ACTIVATE_OWNER', etc.
+    target_type = Column(String) # 'turf', 'owner', 'admin'
+    target_id = Column(Integer, nullable=True)
+    details = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    admin = relationship("User")
 
 

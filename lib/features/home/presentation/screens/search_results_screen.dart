@@ -15,7 +15,10 @@ class SearchResultsScreen extends ConsumerWidget {
     final cleanQuery = query.trim().isEmpty ? null : query.trim();
     final turfsAsync = ref.watch(fetchTurfsProvider(cleanQuery, null));
     final favoritesAsync = ref.watch(fetchMyFavoritesProvider);
-    final favoriteTurfIds = favoritesAsync.valueOrNull?.map((f) => f.turf.id).toSet() ?? {};
+    final favoriteTurfIds = (favoritesAsync.valueOrNull ?? [])
+        .where((f) => (f as dynamic).turf != null)
+        .map((f) => f.turf.id)
+        .toSet();
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
@@ -139,7 +142,9 @@ class SearchResultsScreen extends ConsumerWidget {
                                 Stack(
                                   children: [
                                     Image.network(
-                                      turf.imageUrl ?? 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800',
+                                      (turf.imageUrl != null && turf.imageUrl!.trim().startsWith('http'))
+                                          ? turf.imageUrl!.trim()
+                                          : 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800',
                                       height: 160,
                                       width: double.infinity,
                                       fit: BoxFit.cover,
@@ -149,7 +154,7 @@ class SearchResultsScreen extends ConsumerWidget {
                                         child: const Icon(Icons.sports_soccer, size: 48, color: AppTheme.primaryGreen),
                                       ),
                                     ),
-                                    if (turf.sportTypes != null && turf.sportTypes!.isNotEmpty)
+                                    if (turf.sportTypes != null && turf.sportTypes!.trim().isNotEmpty)
                                       Positioned(
                                         top: 12,
                                         left: 12,
@@ -160,7 +165,9 @@ class SearchResultsScreen extends ConsumerWidget {
                                             borderRadius: BorderRadius.circular(20),
                                           ),
                                           child: Text(
-                                            turf.sportTypes!.split(',').first.trim(),
+                                            turf.sportTypes!.split(',').first.trim().isNotEmpty
+                                                ? turf.sportTypes!.split(',').first.trim()
+                                                : 'Turf',
                                             style: GoogleFonts.poppins(
                                               color: Colors.black,
                                               fontSize: 11,

@@ -470,11 +470,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     hintStyle: GoogleFonts.poppins(color: AppTheme.textMuted),
                     filled: true,
                     fillColor: AppTheme.cardDark,
-                    prefixIcon: CountryCodeButton(
-                      selectedCountry: _selectedCountry,
-                      onCountryChanged: (c) => setState(() => _selectedCountry = c),
+                    prefixIcon: SizedBox(
+                      height: 48,
+                      child: CountryCodeButton(
+                        selectedCountry: _selectedCountry,
+                        onCountryChanged: (c) => setState(() => _selectedCountry = c),
+                      ),
                     ),
-                    prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                    prefixIconConstraints: const BoxConstraints(minWidth: 70, minHeight: 48, maxHeight: 48),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: AppTheme.cardBorder),

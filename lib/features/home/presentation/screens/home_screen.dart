@@ -317,22 +317,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // Reduced Search Bar with AI Search and Mic
   Widget _buildSearchBar(BuildContext context) {
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF101912),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF1F2F23)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.search, color: Color(0xFF6F8275), size: 20),
-          const SizedBox(width: 6),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => context.push('/search-filters'),
-              behavior: HitTestBehavior.opaque,
+    return GestureDetector(
+      onTap: () => context.push('/search'),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFF101912),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF1F2F23)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.search, color: Color(0xFF6F8275), size: 20),
+            const SizedBox(width: 6),
+            Expanded(
               child: Text(
                 'Search turfs, sports...',
                 style: GoogleFonts.poppins(
@@ -343,7 +343,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-          ),
           const SizedBox(width: 4),
           // AI Search Button (compact)
           GestureDetector(
@@ -376,8 +375,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const Icon(Icons.mic_none_rounded, color: Color(0xFF8E9E94), size: 18),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // Scoreboard Option Button next to Search Box
   Widget _buildScoreboardOptionButton(BuildContext context) {

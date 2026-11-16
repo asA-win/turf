@@ -247,11 +247,9 @@ class _InAppMessagesScreenState extends ConsumerState<InAppMessagesScreen> {
           final media = MediaQuery.of(ctx);
           final bottomInset = media.viewInsets.bottom;
           final screenHeight = media.size.height;
-          // Dynamically scale sheet height to visible screen area above software keyboard
-          final visibleHeight = screenHeight - bottomInset;
-          final sheetHeight = bottomInset > 0
-              ? visibleHeight * 0.90
-              : screenHeight * 0.85;
+          final rawVisible = screenHeight - bottomInset;
+          final availableHeight = rawVisible > 200 ? rawVisible : 200.0;
+          final sheetHeight = bottomInset > 0 ? (availableHeight * 0.92) : (screenHeight * 0.85);
 
           return Padding(
             padding: EdgeInsets.only(bottom: bottomInset),

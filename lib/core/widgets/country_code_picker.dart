@@ -198,12 +198,15 @@ void showCountryCodePicker(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (ctx) => _CountryPickerSheet(
-      selectedCountry: selectedCountry ?? Countries.defaultCountry,
-      onSelect: (country) {
-        Navigator.pop(ctx);
-        onSelect(country);
-      },
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+      child: _CountryPickerSheet(
+        selectedCountry: selectedCountry ?? Countries.defaultCountry,
+        onSelect: (country) {
+          Navigator.pop(ctx);
+          onSelect(country);
+        },
+      ),
     ),
   );
 }

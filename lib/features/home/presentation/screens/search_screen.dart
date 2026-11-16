@@ -11,7 +11,7 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
-  final TextEditingController _searchController = TextEditingController(text: 'Football turf in bangalore');
+  final TextEditingController _searchController = TextEditingController();
 
   final List<String> _recentSearches = ['Football turf', 'Indiranagar', 'Cricket', 'Koramangala', 'HSR Layout'];
   final List<String> _popularSearches = [
@@ -24,29 +24,65 @@ class _SearchScreenState extends State<SearchScreen> {
   ];
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _submitSearch(String query) {
+    final clean = query.trim();
+    if (clean.isNotEmpty) {
+      if (!_recentSearches.contains(clean)) {
+        setState(() => _recentSearches.insert(0, clean));
+      }
+      context.push('/search-results?query=$clean');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
         title: TextField(
           controller: _searchController,
-          style: GoogleFonts.poppins(color: Colors.white),
+          autofocus: true,
+          style: GoogleFonts.poppins(color: Colors.white, fontSize: 14),
           decoration: InputDecoration(
             hintText: 'Search turfs, sports, locations...',
+            hintStyle: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 13),
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
-            suffixIcon: IconButton(
-              icon: const Icon(Icons.close, color: AppTheme.textGrey),
-              onPressed: () => _searchController.clear(),
-            ),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.close, color: AppTheme.textGrey, size: 18),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {});
+                    },
+                  )
+                : null,
           ),
-          onSubmitted: (query) => context.push('/search-results?query=$query'),
+          onChanged: (_) => setState(() {}),
+          onSubmitted: _submitSearch,
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.tune, color: AppTheme.primaryGreen),
+            tooltip: 'Filter Options',
+            onPressed: () => context.push('/search-filters'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.search, color: AppTheme.primaryGreen),
+            tooltip: 'Search',
+            onPressed: () => _submitSearch(_searchController.text),
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(

@@ -75,6 +75,17 @@ class _MyBookingsScreenState extends ConsumerState<MyBookingsScreen> {
               ),
             ],
           ),
+          actions: [
+            TextButton.icon(
+              onPressed: () => context.push('/tournaments'),
+              icon: const Icon(Icons.emoji_events_rounded, color: AppTheme.primaryGreen, size: 16),
+              label: Text(
+                'Tournaments',
+                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
           bottom: const TabBar(
             indicatorColor: AppTheme.primaryGreen,
             labelColor: AppTheme.primaryGreen,

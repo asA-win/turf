@@ -111,12 +111,16 @@ async def get_my_tournaments(
     user: User = Depends(get_current_user_obj),
 ):
     """
-    Dedicated Creator Section: Get all tournaments created by the authenticated user.
-    Strictly isolated to user's creator_id.
+    Get all tournaments created by or registered/booked by the authenticated user.
+    Includes both organizer tournaments and player team registrations.
     """
+    reg_subquery = select(TournamentRegistration.tournament_id).filter(TournamentRegistration.user_id == user.id)
     result = await db.execute(
         select(Tournament)
-        .filter(Tournament.creator_id == user.id)
+        .filter(
+            (Tournament.creator_id == user.id) |
+            (Tournament.id.in_(reg_subquery))
+        )
         .order_by(desc(Tournament.created_at))
     )
     my_tournaments = result.scalars().all()

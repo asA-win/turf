@@ -453,6 +453,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
               _linkTile(Icons.card_giftcard_outlined, 'Referral & Earn', '/referral'),
+              _linkTile(Icons.emoji_events_outlined, 'My Tournaments & Leagues', '/tournaments', subtitle: 'View registered cups, hubs & fixtures'),
               _linkTile(Icons.history, 'Booking History', '/my-bookings'),
 
               const SizedBox(height: 16),

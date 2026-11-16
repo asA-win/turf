@@ -212,6 +212,25 @@ class _TournamentRulesScreenState extends ConsumerState<TournamentRulesScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    context.go('/tournaments');
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF2B4434)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(
+                    'Go to My Tournaments',
+                    style: GoogleFonts.poppins(fontSize: 13, color: Colors.white70),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

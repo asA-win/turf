@@ -1781,7 +1781,7 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
                   // Actions Row
                   Row(
                     children: [
-                      if (createdByYou || _selectedTopTab == 1 || tournament['isCreator'] == true) ...[
+                      if (createdByYou || tournament['isCreator'] == true) ...[
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () {
@@ -1826,7 +1826,7 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
                             ),
                           ),
                         ),
-                      ] else if (tournament['isRegisteredByYou'] == true) ...[
+                      ] else if (tournament['isRegisteredByYou'] == true || _selectedTopTab == 1) ...[
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () {
@@ -1834,7 +1834,7 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
                             },
                             icon: const Icon(Icons.check_circle_rounded, size: 15, color: AppTheme.primaryGreen),
                             label: Text(
-                              'Registered • View Hub',
+                              'Booked • View Hub & Teams',
                               style: GoogleFonts.poppins(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
@@ -1843,6 +1843,11 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
                             ),
                             style: OutlinedButton.styleFrom(
                               side: const BorderSide(color: AppTheme.primaryGreen, width: 1.2),
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ),
                               padding: const EdgeInsets.symmetric(vertical: 9),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),

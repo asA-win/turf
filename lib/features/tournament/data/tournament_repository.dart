@@ -339,7 +339,10 @@ class TournamentRepository extends ChangeNotifier {
       final res = await dio.post('/tournaments/$backendId/register', data: payload);
       if (res.data is Map) {
         // Refresh full tournament details to get updated team counts and registrations
-        return await fetchTournamentDetails(dio, backendId, currentUserId: currentUserId);
+        final details = await fetchTournamentDetails(dio, backendId, currentUserId: currentUserId);
+        // Refresh user's booked / created tournaments list
+        await fetchMyTournaments(dio, currentUserId: currentUserId);
+        return details;
       }
     } catch (e) {
       debugPrint('[TOURNAMENT REPO] Error registering team: $e');

@@ -8,6 +8,7 @@ import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/widgets/bys_bottom_nav_bar.dart';
 import 'package:turf_app/core/widgets/bys_profile_avatar.dart';
+import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
 import 'package:turf_app/features/tournament/data/tournament_repository.dart';
 
 class TournamentsListScreen extends ConsumerStatefulWidget {
@@ -19,6 +20,9 @@ class TournamentsListScreen extends ConsumerStatefulWidget {
 
 class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
   final TextEditingController _searchController = TextEditingController();
+
+  // Top Section: 0 = Explore Tournaments, 1 = My Tournaments
+  int _selectedTopTab = 0;
 
   // Location / Area State
   String _userCurrentArea = 'Koramangala';
@@ -77,15 +81,25 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
     super.initState();
     TournamentRepository.instance.addListener(_onRepositoryChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      TournamentRepository.instance.syncWithBackend(ref.read(dioClientProvider));
+      _fetchData();
       try {
         _tournamentsSub = ref.read(realtimeServiceProvider).connectToChannel('tournaments').listen((event) {
-          TournamentRepository.instance.handleRealtimeEvent(event);
+          final currentUserId = ref.read(fetchUserProfileProvider).valueOrNull?.id;
+          TournamentRepository.instance.handleRealtimeEvent(event, currentUserId: currentUserId);
         });
       } catch (e) {
         debugPrint('Tournaments realtime error: $e');
       }
     });
+  }
+
+  Future<void> _fetchData() async {
+    final userProfile = ref.read(fetchUserProfileProvider).valueOrNull;
+    final dio = ref.read(dioClientProvider);
+    await Future.wait([
+      TournamentRepository.instance.fetchAllTournaments(dio, currentUserId: userProfile?.id),
+      TournamentRepository.instance.fetchMyTournaments(dio, currentUserId: userProfile?.id),
+    ]);
   }
 
   @override
@@ -140,9 +154,9 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
 
   List<Map<String, dynamic>> _getFilteredTournaments() {
     final query = _searchController.text.trim().toLowerCase();
-    final all = TournamentRepository.instance.tournaments.isNotEmpty
-        ? TournamentRepository.instance.tournaments
-        : TournamentRepository.initialTournaments;
+    final all = (_selectedTopTab == 1)
+        ? TournamentRepository.instance.myTournaments
+        : TournamentRepository.instance.tournaments;
 
     final filtered = all.where((t) {
       // 1. Sport
@@ -626,11 +640,111 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
         label: Text('Create Tournament', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 13)),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: RefreshIndicator(
+          onRefresh: _fetchData,
+          color: AppTheme.primaryGreen,
+          backgroundColor: const Color(0xFF101912),
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Segmented Switcher: Explore Tournaments vs My Tournaments
+                Container(
+                  margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF101912),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF1E2F22)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedTopTab = 0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _selectedTopTab == 0 ? AppTheme.primaryGreen : Colors.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            alignment: Alignment.center,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.explore_rounded,
+                                  size: 16,
+                                  color: _selectedTopTab == 0 ? Colors.black : Colors.white70,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Explore',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: _selectedTopTab == 0 ? Colors.black : Colors.white70,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedTopTab = 1),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _selectedTopTab == 1 ? AppTheme.primaryGreen : Colors.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            alignment: Alignment.center,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.shield_rounded,
+                                  size: 16,
+                                  color: _selectedTopTab == 1 ? Colors.black : Colors.white70,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'My Tournaments',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: _selectedTopTab == 1 ? Colors.black : Colors.white70,
+                                  ),
+                                ),
+                                if (TournamentRepository.instance.myTournaments.isNotEmpty) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: _selectedTopTab == 1 ? Colors.black : AppTheme.primaryGreen,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      '${TournamentRepository.instance.myTournaments.length}',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: _selectedTopTab == 1 ? AppTheme.primaryGreen : Colors.black,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               // Top Location Bar (Quick Neighborhood Switcher for Nearby finding)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -978,8 +1092,8 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
 
               const SizedBox(height: 14),
 
-              // Spotlight Featured Banner (if all filters default)
-              if (filterCount == 0 && _searchController.text.isEmpty && filtered.isNotEmpty) ...[
+              // Spotlight Featured Banner (only on Explore tab when no filters are active)
+              if (_selectedTopTab == 0 && filterCount == 0 && _searchController.text.isEmpty && filtered.isNotEmpty) ...[
                 _buildSpotlightBanner(context, filtered.first),
                 const SizedBox(height: 20),
               ],
@@ -991,7 +1105,9 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'All Tournaments (${filtered.length})',
+                      _selectedTopTab == 1
+                          ? 'My Tournaments (${filtered.length})'
+                          : 'All Tournaments (${filtered.length})',
                       style: GoogleFonts.poppins(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
@@ -1026,34 +1142,100 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
                   child: Center(
-                    child: Column(
-                      children: [
-                        const Icon(Icons.location_off_outlined, color: Colors.white24, size: 56),
-                        const SizedBox(height: 14),
-                        Text(
-                          'No tournaments found matching filters',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Try increasing distance radius, selecting "All Areas", or clearing sport filters.',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(color: const Color(0xFF8E9E94), fontSize: 12),
-                        ),
-                        const SizedBox(height: 18),
-                        ElevatedButton.icon(
-                          onPressed: _resetAllFilters,
-                          icon: const Icon(Icons.refresh, size: 16, color: Colors.black),
-                          label: Text('Reset Filters', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 12.5)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primaryGreen,
-                            foregroundColor: Colors.black,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: _selectedTopTab == 1
+                        ? Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primaryGreen.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.emoji_events_rounded, color: AppTheme.primaryGreen, size: 54),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'You haven\'t created any tournaments yet',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Host your own tournament cup! Set entry fees, manage squads, generate fixtures, and update match scores in real time.',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(color: const Color(0xFF8E9E94), fontSize: 12),
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  await context.push('/create-tournament');
+                                  if (mounted) setState(() {});
+                                },
+                                icon: const Icon(Icons.add_circle, color: Colors.black, size: 18),
+                                label: Text(
+                                  'Create Tournament',
+                                  style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primaryGreen,
+                                  foregroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF142418),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.explore_off_rounded, color: AppTheme.primaryGreen, size: 54),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                filterCount > 0 ? 'No tournaments matching filters' : 'No tournaments available right now',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                filterCount > 0
+                                    ? 'Try increasing distance radius, selecting "All Areas", or clearing sport filters.'
+                                    : 'Be the first to host a championship cup in your city or check back soon for upcoming tournaments.',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(color: const Color(0xFF8E9E94), fontSize: 12),
+                              ),
+                              const SizedBox(height: 20),
+                              filterCount > 0
+                                  ? ElevatedButton.icon(
+                                      onPressed: _resetAllFilters,
+                                      icon: const Icon(Icons.refresh, size: 16, color: Colors.black),
+                                      label: Text('Reset Filters', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 12.5)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppTheme.primaryGreen,
+                                        foregroundColor: Colors.black,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                    )
+                                  : ElevatedButton.icon(
+                                      onPressed: () async {
+                                        await context.push('/create-tournament');
+                                        if (mounted) setState(() {});
+                                      },
+                                      icon: const Icon(Icons.add_circle, color: Colors.black, size: 18),
+                                      label: Text('Create Tournament', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.black)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppTheme.primaryGreen,
+                                        foregroundColor: Colors.black,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                    ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
                   ),
                 )
               else
@@ -1074,6 +1256,7 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
           ),
         ),
       ),
+    ),
       bottomNavigationBar: const BysBottomNavBar(currentIndex: 2),
     );
   }
@@ -1598,47 +1781,117 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
                   // Actions Row
                   Row(
                     children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                            context.push('/tournament-hub', extra: tournament);
-                          },
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF284230)),
-                            padding: const EdgeInsets.symmetric(vertical: 9),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          child: Text(
-                            'View Hub & Fixtures',
-                            style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      if (tournament['status'] != 'Completed')
+                      if (createdByYou || _selectedTopTab == 1 || tournament['isCreator'] == true) ...[
                         Expanded(
-                          child: ElevatedButton(
-                            onPressed: () => _showRegisterDialog(tournament),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.primaryGreen,
-                              foregroundColor: Colors.black,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              context.push('/tournament-hub', extra: tournament);
+                            },
+                            icon: const Icon(Icons.remove_red_eye_outlined, size: 14, color: Colors.white70),
+                            label: Text(
+                              'View Hub',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFF284230)),
                               padding: const EdgeInsets.symmetric(vertical: 9),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
-                            child: Text(
-                              'Register Team',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              context.push('/tournament-hub', extra: {...tournament, 'manageDirectly': true});
+                            },
+                            icon: const Icon(Icons.tune_rounded, size: 14, color: Colors.black),
+                            label: Text(
+                              'Manage / Edit',
                               style: GoogleFonts.poppins(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black,
                               ),
                             ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryGreen,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
                           ),
                         ),
+                      ] else if (tournament['isRegisteredByYou'] == true) ...[
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              context.push('/tournament-hub', extra: tournament);
+                            },
+                            icon: const Icon(Icons.check_circle_rounded, size: 15, color: AppTheme.primaryGreen),
+                            label: Text(
+                              'Registered • View Hub',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryGreen,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppTheme.primaryGreen, width: 1.2),
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ),
+                      ] else ...[
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              context.push('/tournament-hub', extra: tournament);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFF284230)),
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: Text(
+                              tournament['status'] == 'Completed' ? 'View Results' : 'View Hub & Fixtures',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (tournament['status'] != 'Completed' && tournament['status'] != 'Cancelled') ...[
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: spotsFilled >= totalSpots ? null : () => _showRegisterDialog(tournament),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: spotsFilled >= totalSpots ? const Color(0xFF223026) : AppTheme.primaryGreen,
+                                foregroundColor: spotsFilled >= totalSpots ? Colors.white38 : Colors.black,
+                                padding: const EdgeInsets.symmetric(vertical: 9),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              child: Text(
+                                spotsFilled >= totalSpots ? 'Spots Full' : 'Register Team',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: spotsFilled >= totalSpots ? Colors.white38 : Colors.black,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ],
                   ),
                 ],

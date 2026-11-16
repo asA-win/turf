@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 class TurfBase(BaseModel):
@@ -62,6 +62,14 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     firebase_uid: str
+    password: Optional[str] = None
+
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    business_name: Optional[str] = None
+    city: Optional[str] = None
 
 class UserUpdateRole(BaseModel):
     role: str
@@ -90,22 +98,105 @@ class Booking(BookingBase):
     class Config:
         from_attributes = True
 
+class MatchParticipantBase(BaseModel):
+    team: str = "A"
+    player_name: str
+    player_role: Optional[str] = None
+    jersey_number: Optional[str] = None
+
+class MatchParticipantCreate(BaseModel):
+    team: Optional[str] = "A"
+    player_name: Optional[str] = None
+    player_role: Optional[str] = None
+    jersey_number: Optional[str] = None
+
+class MatchParticipant(MatchParticipantBase):
+    id: int
+    match_id: int
+    user_id: int
+    joined_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
 class MatchBase(BaseModel):
-    turf_id: int
-    team_a_name: str = "Team A"
-    team_b_name: str = "Team B"
+    title: Optional[str] = None
+    turf_id: Optional[int] = None
+    sport_type: str = "Football"
+    format: Optional[str] = "5v5"
+    venue_name: Optional[str] = "Play Arena"
+    location: Optional[str] = "Koramangala, Bengaluru"
+    match_date: Optional[str] = None
+    match_time: Optional[str] = None
+    duration_minutes: Optional[int] = 60
+    team_a_name: str = "Team Alpha"
+    team_b_name: str = "Team Beta"
     team_a_score: int = 0
     team_b_score: int = 0
-    status: str = "live"
-    sport_type: str = "Football"
+    team_a_color: Optional[str] = "Neon Green"
+    team_b_color: Optional[str] = "Royal Blue"
+    status: str = "scheduled"
+    max_players: Optional[int] = 10
+    current_players_count: Optional[int] = 1
+    price_per_player: Optional[float] = 0.0
+    skill_level: Optional[str] = "Intermediate"
+    scoreboard_state_json: Optional[str] = None
+    timeline_events_json: Optional[str] = None
+    mvp_player_name: Optional[str] = None
+    mvp_notes: Optional[str] = None
 
 class MatchCreate(MatchBase):
     pass
 
+class MatchUpdate(BaseModel):
+    title: Optional[str] = None
+    sport_type: Optional[str] = None
+    format: Optional[str] = None
+    venue_name: Optional[str] = None
+    location: Optional[str] = None
+    match_date: Optional[str] = None
+    match_time: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    team_a_name: Optional[str] = None
+    team_b_name: Optional[str] = None
+    team_a_color: Optional[str] = None
+    team_b_color: Optional[str] = None
+    status: Optional[str] = None
+    max_players: Optional[int] = None
+    price_per_player: Optional[float] = None
+    skill_level: Optional[str] = None
+    scoreboard_state_json: Optional[str] = None
+    timeline_events_json: Optional[str] = None
+    mvp_player_name: Optional[str] = None
+    mvp_notes: Optional[str] = None
+
+class MatchScoreUpdate(BaseModel):
+    team_a_score: Optional[int] = None
+    team_b_score: Optional[int] = None
+    status: Optional[str] = None
+    scoreboard_state_json: Optional[str] = None
+
+class MatchTimelineEventCreate(BaseModel):
+    event_type: str
+    minute: Optional[str] = None
+    team: Optional[str] = None
+    player_name: Optional[str] = None
+    description: Optional[str] = None
+    score_snapshot: Optional[str] = None
+
+class MatchFinishRequest(BaseModel):
+    mvp_player_name: Optional[str] = None
+    mvp_notes: Optional[str] = None
+    final_team_a_score: Optional[int] = None
+    final_team_b_score: Optional[int] = None
+
 class Match(MatchBase):
     id: int
-    start_time: datetime
+    creator_id: Optional[int] = None
+    start_time: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     turf: Optional[Turf] = None
+    participants: List[MatchParticipant] = []
     class Config:
         from_attributes = True
 
@@ -170,6 +261,12 @@ class FCMToken(FCMTokenBase):
 class SendOTPRequest(BaseModel):
     identifier: str # phone or email
 
+class RegisterUserRequest(BaseModel):
+    email: str
+    password: str
+    full_name: Optional[str] = "User"
+    phone: Optional[str] = None
+
 class RegisterOwnerRequest(BaseModel):
     business_name: str
     owner_name: str
@@ -190,6 +287,7 @@ class RegisterOwnerRequest(BaseModel):
 class VerifyOTPRequest(BaseModel):
     identifier: str
     code: str
+    role: Optional[str] = "user"
 
 class LoginRequest(BaseModel):
     email: str
@@ -236,19 +334,131 @@ class ReferralResponse(BaseModel):
     total_rewards: float = 0.0
 
 # --- Tournament Schemas ---
+class TournamentRegistrationCreate(BaseModel):
+    team_name: str
+    team_tag: Optional[str] = None
+    captain_name: str
+    contact_phone: str
+    contact_email: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    jersey_color: Optional[str] = "Neon Green"
+    skill_level: Optional[str] = "Intermediate / Club"
+    players: Optional[List[dict]] = []
+    special_requests: Optional[str] = None
+
+class TournamentRegistrationStatusUpdate(BaseModel):
+    status: str # 'Approved', 'Rejected', 'Cancelled', 'Pending'
+
+class TournamentRegistrationOut(BaseModel):
+    id: int
+    tournament_id: int
+    user_id: int
+    team_name: str
+    team_tag: Optional[str] = None
+    captain_name: str
+    contact_phone: str
+    contact_email: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    jersey_color: Optional[str] = None
+    skill_level: Optional[str] = None
+    players_json: Optional[str] = None
+    players_count: int = 1
+    special_requests: Optional[str] = None
+    status: str = "Approved"
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class TournamentMatchOut(BaseModel):
+    id: int
+    tournament_id: int
+    match_number: int
+    round: int = 1
+    stage: str
+    stage_group: Optional[str] = None
+    team_a_registration_id: Optional[int] = None
+    team_b_registration_id: Optional[int] = None
+    team_a_name: str
+    team_b_name: str
+    team_a_score: int = 0
+    team_b_score: int = 0
+    winner_name: Optional[str] = None
+    status: str = "scheduled"
+    venue_pitch: Optional[str] = None
+    scheduled_time: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    class Config:
+        from_attributes = True
+
+class TournamentMatchScoreUpdate(BaseModel):
+    team_a_score: int
+    team_b_score: int
+    status: Optional[str] = "completed"
+    winner_name: Optional[str] = None
+
+class TournamentFixturesGenerate(BaseModel):
+    strategy: Optional[str] = "balanced" # 'balanced', 'seeded', 'random'
+
 class TournamentBase(BaseModel):
     title: str
-    prize_pool: float = 1000000.0
+    description: Optional[str] = None
+    sport: str = "Football"
+    format: str = "5v5 Knockout"
+    level: str = "Open Category"
+    venue: str = "Play Arena"
+    area: str = "Koramangala"
+    city: str = "Bangalore"
+    banner_image: Optional[str] = None
+    prize_pool: float = 100000.0
+    entry_fee: float = 0.0
     total_teams: int = 16
-    format: str = "Knockout"
-    status: str = "upcoming"
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    registration_deadline: Optional[datetime] = None
+    rules: Optional[str] = None
+    status: str = "Open Entry"
+    contact_phone: Optional[str] = None
+    organizer_name: Optional[str] = None
 
 class TournamentCreate(TournamentBase):
     pass
 
+class TournamentUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    sport: Optional[str] = None
+    format: Optional[str] = None
+    level: Optional[str] = None
+    venue: Optional[str] = None
+    area: Optional[str] = None
+    city: Optional[str] = None
+    banner_image: Optional[str] = None
+    prize_pool: Optional[float] = None
+    entry_fee: Optional[float] = None
+    total_teams: Optional[int] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    registration_deadline: Optional[datetime] = None
+    rules: Optional[str] = None
+    status: Optional[str] = None
+    contact_phone: Optional[str] = None
+    organizer_name: Optional[str] = None
+
 class Tournament(TournamentBase):
     id: int
-    start_date: datetime
+    creator_id: Optional[int] = None
+    registered_teams_count: int = 0
+    fixtures_generated: bool = False
+    created_at: datetime
+    updated_at: datetime
+    class Config:
+        from_attributes = True
+
+class TournamentDetail(Tournament):
+    registrations: List[TournamentRegistrationOut] = []
+    matches: List[TournamentMatchOut] = []
     class Config:
         from_attributes = True
 

@@ -101,7 +101,12 @@ async def read_turfs(
     if owner_id:
         query = query.filter(Turf.owner_id == owner_id)
     if search:
-        query = query.filter(Turf.name.ilike(f"%{search}%"))
+        search_term = f"%{search.strip()}%"
+        query = query.filter(
+            (Turf.name.ilike(search_term)) |
+            (Turf.location.ilike(search_term)) |
+            (Turf.sport_types.ilike(search_term))
+        )
     if sport_type and sport_type != "All Sports":
         query = query.filter(Turf.sport_types.ilike(f"%{sport_type}%"))
     

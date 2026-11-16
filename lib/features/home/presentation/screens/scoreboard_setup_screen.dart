@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/home/data/match_repository.dart';
 
 class ScoreboardSetupScreen extends StatefulWidget {
   final Map<String, dynamic>? initialConfig;
@@ -137,46 +138,12 @@ class _ScoreboardSetupScreenState extends State<ScoreboardSetupScreen> {
     _selectedRoleA = _currentRoles.first;
     _selectedRoleB = _currentRoles.first;
 
-    // Prefill sample members if requested or none provided
-    _seedInitialSampleMembers();
-  }
-
-  void _seedInitialSampleMembers() {
-    if (_selectedSport == 'football') {
-      _teamAMembers.addAll([
-        {'name': 'Rahul Sharma', 'role': 'Striker', 'number': '10'},
-        {'name': 'Vikram Rathore', 'role': 'Midfielder', 'number': '7'},
-        {'name': 'Samson Davis', 'role': 'Defender', 'number': '4'},
-        {'name': 'Karan Mehta', 'role': 'Goalkeeper', 'number': '1'},
-      ]);
-      _teamBMembers.addAll([
-        {'name': 'Harsh Varma', 'role': 'Striker', 'number': '9'},
-        {'name': 'David Miller', 'role': 'Midfielder', 'number': '8'},
-        {'name': 'Aditya Rao', 'role': 'Defender', 'number': '3'},
-        {'name': 'Tanmay Roy', 'role': 'Goalkeeper', 'number': '12'},
-      ]);
-    } else if (_selectedSport == 'cricket') {
-      _teamAMembers.addAll([
-        {'name': 'Rohit Sen', 'role': 'Captain', 'number': '45'},
-        {'name': 'Arun Kumar', 'role': 'Batsman', 'number': '18'},
-        {'name': 'Kiran Patel', 'role': 'All-Rounder', 'number': '7'},
-        {'name': 'Jasprit Singh', 'role': 'Bowler', 'number': '93'},
-      ]);
-      _teamBMembers.addAll([
-        {'name': 'Virat Joshi', 'role': 'Captain', 'number': '18'},
-        {'name': 'Shikhar D.', 'role': 'Batsman', 'number': '25'},
-        {'name': 'Hardik R.', 'role': 'All-Rounder', 'number': '33'},
-        {'name': 'Mohammad S.', 'role': 'Bowler', 'number': '11'},
-      ]);
-    } else {
-      _teamAMembers.addAll([
-        {'name': 'Player 1', 'role': _currentRoles[0], 'number': '1'},
-        {'name': 'Player 2', 'role': _currentRoles.length > 1 ? _currentRoles[1] : _currentRoles[0], 'number': '2'},
-      ]);
-      _teamBMembers.addAll([
-        {'name': 'Opponent 1', 'role': _currentRoles[0], 'number': '1'},
-        {'name': 'Opponent 2', 'role': _currentRoles.length > 1 ? _currentRoles[1] : _currentRoles[0], 'number': '2'},
-      ]);
+    // Prefill members if provided in initial config
+    if (cfg['teamAMembers'] is List) {
+      _teamAMembers.addAll(List<Map<String, dynamic>>.from(cfg['teamAMembers']));
+    }
+    if (cfg['teamBMembers'] is List) {
+      _teamBMembers.addAll(List<Map<String, dynamic>>.from(cfg['teamBMembers']));
     }
   }
 
@@ -189,10 +156,6 @@ class _ScoreboardSetupScreenState extends State<ScoreboardSetupScreen> {
       final sportMeta = _sports.firstWhere((s) => s['id'] == sportId);
       _teamANameController.text = sportMeta['defaultA'] as String;
       _teamBNameController.text = sportMeta['defaultB'] as String;
-
-      _teamAMembers.clear();
-      _teamBMembers.clear();
-      _seedInitialSampleMembers();
     });
   }
 
@@ -259,7 +222,10 @@ class _ScoreboardSetupScreenState extends State<ScoreboardSetupScreen> {
     );
   }
 
-  void _launchScoreboard() {
+  bool _isCreating = false;
+
+  Future<void> _launchScoreboard() async {
+    if (_isCreating) return;
     final teamA = _teamANameController.text.trim().isEmpty ? 'Team A' : _teamANameController.text.trim();
     final teamB = _teamBNameController.text.trim().isEmpty ? 'Team B' : _teamBNameController.text.trim();
     final turfName = _venueController.text.trim().isEmpty ? 'Greenfield Turf' : _venueController.text.trim();
@@ -278,9 +244,46 @@ class _ScoreboardSetupScreenState extends State<ScoreboardSetupScreen> {
       'badmintonPoints': _badmintonPoints,
       'basketballQuarterMinutes': _basketballQuarterMinutes,
       'isViewOnly': false,
+      'isCreator': true,
     };
 
-    context.push('/scoreboard', extra: config);
+    if (widget.initialConfig?['matchId'] != null) {
+      config['matchId'] = widget.initialConfig!['matchId'];
+      context.push('/scoreboard', extra: config);
+      return;
+    }
+
+    setState(() => _isCreating = true);
+    try {
+      final newMatch = await MatchRepository.instance.createMatch({
+        'title': '$teamA vs $teamB',
+        'sport_type': _selectedSport,
+        'format': 'friendly',
+        'venue_name': turfName,
+        'location': turfName,
+        'team_a_name': teamA,
+        'team_b_name': teamB,
+        'team_a_color': '#${_teamAColor.toARGB32().toRadixString(16).padLeft(8, '0')}',
+        'team_b_color': '#${_teamBColor.toARGB32().toRadixString(16).padLeft(8, '0')}',
+        'status': 'live',
+        'max_players': (_teamAMembers.length + _teamBMembers.length) > 0 ? (_teamAMembers.length + _teamBMembers.length) : 22,
+        'scoreboard_state': config,
+      });
+
+      if (mounted) {
+        if (newMatch != null) {
+          config['matchId'] = newMatch['id']?.toString();
+          config['backendMatchId'] = newMatch['id'];
+        }
+        context.push('/scoreboard', extra: config);
+      }
+    } catch (_) {
+      if (mounted) {
+        context.push('/scoreboard', extra: config);
+      }
+    } finally {
+      if (mounted) setState(() => _isCreating = false);
+    }
   }
 
   @override
@@ -1059,10 +1062,16 @@ class _ScoreboardSetupScreenState extends State<ScoreboardSetupScreen> {
           width: double.infinity,
           height: 52,
           child: ElevatedButton.icon(
-            onPressed: _launchScoreboard,
-            icon: const Icon(Icons.play_circle_fill_rounded, color: Colors.black, size: 22),
+            onPressed: _isCreating ? null : _launchScoreboard,
+            icon: _isCreating
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                  )
+                : const Icon(Icons.play_circle_fill_rounded, color: Colors.black, size: 22),
             label: Text(
-              'Start Live Scoreboard',
+              _isCreating ? 'Creating Match...' : 'Start Live Scoreboard',
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,

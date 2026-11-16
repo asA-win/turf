@@ -31,6 +31,17 @@ class Settings(BaseSettings):
             # asyncpg accepts ssl=... instead of sslmode=...
             if "sslmode=" in v:
                 v = v.replace("sslmode=", "ssl=")
+
+            if v.startswith("sqlite+aiosqlite:///") and ("./turf.db" in v or v.endswith("/turf.db")):
+                # Resolve canonical database file location
+                cand1 = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "turf.db"))
+                cand2 = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "turf.db"))
+                if os.path.exists(cand1) and os.path.getsize(cand1) > 0:
+                    cand_normalized = cand1.replace("\\", "/")
+                    v = f"sqlite+aiosqlite:///{cand_normalized}"
+                elif os.path.exists(cand2) and os.path.getsize(cand2) > 0:
+                    cand_normalized = cand2.replace("\\", "/")
+                    v = f"sqlite+aiosqlite:///{cand_normalized}"
         return v
 
     class Config:

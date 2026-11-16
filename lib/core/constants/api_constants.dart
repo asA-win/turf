@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 class ApiConstants {
   static const String _envApiUrl = String.fromEnvironment('API_URL');
   static const String _envWsUrl = String.fromEnvironment('WS_URL');

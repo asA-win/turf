@@ -22,6 +22,8 @@ class UserProfile {
     this.phone,
   });
 
+  String? get name => fullName;
+
   factory UserProfile.fromJson(Map<String, dynamic> json) => _$UserProfileFromJson(json);
   Map<String, dynamic> json() => _$UserProfileToJson(this);
 }

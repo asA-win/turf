@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/core/services/session_manager.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/widgets/country_code_picker.dart';
 import 'package:turf_app/features/auth/presentation/controllers/auth_controller.dart';
@@ -102,30 +103,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
-      await ref.read(authControllerProvider.notifier).login(email, password);
+      final userRole = await ref.read(authControllerProvider.notifier).login(email, password);
       if (!mounted) return;
-      final state = ref.read(authControllerProvider);
-      state.whenOrNull(
-        error: (err, st) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(err.toString()),
-              backgroundColor: AppTheme.errorRed,
+      if (userRole != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Login successful!'),
+            backgroundColor: AppTheme.primaryGreen,
+            duration: Duration(seconds: 1),
+          ),
+        );
+        if (userRole == 'admin') {
+          context.go('/analytics-dashboard');
+        } else if (userRole == 'owner') {
+          context.go('/venue-owner-dashboard');
+        } else {
+          context.go('/home');
+        }
+      } else {
+        final state = ref.read(authControllerProvider);
+        final errorText = state.hasError ? (state.error is String ? state.error as String : state.error.toString()) : 'Invalid email or password';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              errorText.toLowerCase().contains('invalid email or password')
+                  ? 'No account found with this email or password incorrect. New user?'
+                  : errorText,
             ),
-          );
-        },
-        data: (_) async {
-          final profile = await ref.read(fetchUserProfileProvider.future);
-          if (!mounted) return;
-          if (profile?.role == 'admin') {
-            context.go('/analytics-dashboard');
-          } else if (profile?.role == 'owner') {
-            context.go('/venue-owner-dashboard');
-          } else {
-            context.go('/home');
-          }
-        },
-      );
+            backgroundColor: AppTheme.errorRed,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Sign Up',
+              textColor: Colors.white,
+              onPressed: () => context.push('/signup', extra: {
+                'email': email,
+                'password': password,
+              }),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -181,6 +198,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       },
       data: (_) async {
+        await SessionManager.ensureBackendToken();
         final profile = await ref.read(fetchUserProfileProvider.future);
         if (!mounted) return;
         if (profile?.role == 'admin') {
@@ -366,7 +384,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Login or signup to continue',
+                'Sign in to your account or create a new one',
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   color: AppTheme.textGrey,
@@ -566,6 +584,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                 ),
               ),
+
+              if (_selectedTab == 1) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton(
+                    onPressed: () => context.push('/signup', extra: {
+                      'email': _emailController.text.trim(),
+                      'password': _passwordController.text.trim(),
+                    }),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.primaryGreen,
+                      side: const BorderSide(color: AppTheme.primaryGreen, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.person_add_outlined, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'New User? Sign Up Here',
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 32),
               // Divider "or continue with"

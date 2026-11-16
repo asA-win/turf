@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.session import Base
@@ -127,27 +127,136 @@ class Match(Base):
     __tablename__ = "matches"
     
     id = Column(Integer, primary_key=True, index=True)
-    turf_id = Column(Integer, ForeignKey("turfs.id"))
-    team_a_name = Column(String, default="Team A")
-    team_b_name = Column(String, default="Team B")
+    creator_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    turf_id = Column(Integer, ForeignKey("turfs.id"), nullable=True)
+    title = Column(String, nullable=True)
+    sport_type = Column(String, default="Football") # 'Football', 'Cricket', 'Badminton', 'Basketball', 'Tennis'
+    format = Column(String, default="5v5")
+    venue_name = Column(String, default="Play Arena")
+    location = Column(String, default="Koramangala, Bengaluru")
+    match_date = Column(String, nullable=True)
+    match_time = Column(String, nullable=True)
+    duration_minutes = Column(Integer, default=60)
+    team_a_name = Column(String, default="Team Alpha")
+    team_b_name = Column(String, default="Team Beta")
     team_a_score = Column(Integer, default=0)
     team_b_score = Column(Integer, default=0)
-    status = Column(String, default="live") # 'live', 'completed', 'scheduled'
-    sport_type = Column(String, default="Football")
+    team_a_color = Column(String, default="Neon Green")
+    team_b_color = Column(String, default="Royal Blue")
+    status = Column(String, default="scheduled") # 'scheduled', 'live', 'completed', 'cancelled'
+    max_players = Column(Integer, default=10)
+    current_players_count = Column(Integer, default=1)
+    price_per_player = Column(Float, default=0.0)
+    skill_level = Column(String, default="Intermediate")
+    scoreboard_state_json = Column(Text, nullable=True)
+    timeline_events_json = Column(Text, nullable=True)
+    mvp_player_name = Column(String, nullable=True)
+    mvp_notes = Column(String, nullable=True)
     start_time = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     turf = relationship("Turf")
+    creator = relationship("User", foreign_keys=[creator_id])
+    participants = relationship("MatchParticipant", back_populates="match", cascade="all, delete-orphan", lazy="selectin")
+
+class MatchParticipant(Base):
+    __tablename__ = "match_participants"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    match_id = Column(Integer, ForeignKey("matches.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    team = Column(String, default="A") # 'A' or 'B'
+    player_name = Column(String, nullable=False)
+    player_role = Column(String, nullable=True)
+    jersey_number = Column(String, nullable=True)
+    joined_at = Column(DateTime, default=datetime.utcnow)
+    
+    match = relationship("Match", back_populates="participants")
+    user = relationship("User")
 
 class Tournament(Base):
     __tablename__ = "tournaments"
     
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
-    prize_pool = Column(Float, default=1000000.0)
+    description = Column(String, nullable=True)
+    sport = Column(String, default="Football") # 'Football', 'Cricket', 'Badminton', 'Basketball', 'Tennis', 'Volleyball'
+    format = Column(String, default="5v5 Knockout")
+    level = Column(String, default="Open Category")
+    venue = Column(String, default="Play Arena")
+    area = Column(String, default="Koramangala")
+    city = Column(String, default="Bangalore")
+    banner_image = Column(String, nullable=True)
+    prize_pool = Column(Float, default=100000.0)
+    entry_fee = Column(Float, default=0.0)
     total_teams = Column(Integer, default=16)
-    format = Column(String, default="Knockout")
-    status = Column(String, default="upcoming") # 'upcoming', 'ongoing', 'completed'
+    registered_teams_count = Column(Integer, default=0)
     start_date = Column(DateTime, default=datetime.utcnow)
+    end_date = Column(DateTime, nullable=True)
+    registration_deadline = Column(DateTime, nullable=True)
+    rules = Column(String, nullable=True)
+    status = Column(String, default="Open Entry") # 'Draft', 'Open Entry', 'Upcoming', 'Ongoing (Live)', 'Completed', 'Cancelled'
+    creator_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=True)
+    contact_phone = Column(String, nullable=True)
+    organizer_name = Column(String, nullable=True)
+    fixtures_generated = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    creator = relationship("User", foreign_keys=[creator_id])
+    registrations = relationship("TournamentRegistration", back_populates="tournament", cascade="all, delete-orphan")
+    matches = relationship("TournamentMatch", back_populates="tournament", cascade="all, delete-orphan")
+
+class TournamentRegistration(Base):
+    __tablename__ = "tournament_registrations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    team_name = Column(String, index=True)
+    team_tag = Column(String, nullable=True)
+    captain_name = Column(String)
+    contact_phone = Column(String)
+    contact_email = Column(String, nullable=True)
+    emergency_contact = Column(String, nullable=True)
+    jersey_color = Column(String, default="Neon Green")
+    skill_level = Column(String, default="Intermediate / Club")
+    players_json = Column(String, nullable=True) # JSON array of player dicts
+    players_count = Column(Integer, default=1)
+    special_requests = Column(String, nullable=True)
+    status = Column(String, default="Approved") # 'Pending', 'Approved', 'Rejected', 'Cancelled'
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    tournament = relationship("Tournament", back_populates="registrations")
+    user = relationship("User", foreign_keys=[user_id])
+
+class TournamentMatch(Base):
+    __tablename__ = "tournament_matches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"), index=True)
+    match_number = Column(Integer)
+    round = Column(Integer, default=1)
+    stage = Column(String) # e.g. "Quarter Final 1", "Semi Final 1", "Grand Final"
+    stage_group = Column(String) # "Quarter Finals", "Semi Finals", "Final"
+    team_a_registration_id = Column(Integer, ForeignKey("tournament_registrations.id"), nullable=True)
+    team_b_registration_id = Column(Integer, ForeignKey("tournament_registrations.id"), nullable=True)
+    team_a_name = Column(String)
+    team_b_name = Column(String)
+    team_a_score = Column(Integer, default=0)
+    team_b_score = Column(Integer, default=0)
+    winner_name = Column(String, nullable=True)
+    status = Column(String, default="scheduled") # 'scheduled', 'live', 'completed', 'cancelled'
+    venue_pitch = Column(String, nullable=True)
+    scheduled_time = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    tournament = relationship("Tournament", back_populates="matches")
+    team_a_registration = relationship("TournamentRegistration", foreign_keys=[team_a_registration_id])
+    team_b_registration = relationship("TournamentRegistration", foreign_keys=[team_b_registration_id])
 
 class Team(Base):
     __tablename__ = "teams"
@@ -269,5 +378,20 @@ class AdminAuditLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     admin = relationship("User")
+
+class DirectMessage(Base):
+    __tablename__ = "direct_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    room_id = Column(String, index=True)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    recipient_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    sender_name = Column(String)
+    message = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    sender = relationship("User", foreign_keys=[sender_id])
+    recipient = relationship("User", foreign_keys=[recipient_id])
+
 
 

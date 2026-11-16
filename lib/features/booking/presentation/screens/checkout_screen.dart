@@ -232,9 +232,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 height: 52,
                 child: ElevatedButton(
                   onPressed: () => context.push('/payment', extra: {
+                    ...?widget.data,
                     'turf': turf,
                     'slot': slot,
                     'totalPrice': total,
+                    'isTournamentBooking': isTournament,
+                    'tournament': tournament,
                   }),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryGreen,

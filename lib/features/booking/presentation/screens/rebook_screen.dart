@@ -1,14 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/booking/data/repositories/booking_repository.dart';
+import 'package:turf_app/features/booking/domain/models/booking.dart';
 
-class RebookScreen extends StatelessWidget {
+class RebookScreen extends ConsumerWidget {
   final String bookingId;
   const RebookScreen({super.key, required this.bookingId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bookingIdInt = int.tryParse(bookingId);
+    final bookingsAsync = ref.watch(fetchMyBookingsProvider);
+    final booking = bookingsAsync.valueOrNull?.cast<Booking?>().firstWhere(
+          (b) => b?.id == bookingIdInt,
+          orElse: () => null,
+        );
+
+    final turfId = booking?.turfId ?? 1;
+    final turfName = booking?.turf?.name ?? 'your favorite venue';
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
@@ -40,18 +53,18 @@ class RebookScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Would you like to rebook this slot or a similar one?',
+                'Would you like to rebook at $turfName or discover similar slots?',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 13),
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: () => context.push('/slot-selection/1'),
-                child: const Text('Rebook Same Slot'),
+                onPressed: () => context.push('/slot-selection/$turfId'),
+                child: const Text('Rebook Same Venue'),
               ),
               const SizedBox(height: 12),
               OutlinedButton(
-                onPressed: () => context.push('/similar-turfs/1'),
+                onPressed: () => context.push('/similar-turfs/$turfId'),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppTheme.primaryGreen),
                   minimumSize: const Size(double.infinity, 50),

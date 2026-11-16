@@ -25,31 +25,7 @@ class _ActiveMatchesScreenState extends ConsumerState<ActiveMatchesScreen> with 
 
   final List<String> _sportsFilter = ['All', 'Football', 'Cricket', 'Badminton', 'Basketball'];
 
-  List<Map<String, dynamic>> _matches = [
-    {
-      'id': 101,
-      'sport': 'Football',
-      'sportIcon': Icons.sports_soccer_rounded,
-      'accentColor': const Color(0xFF00E5FF),
-      'teamA': 'Turf Titans',
-      'teamB': 'Kickers United',
-      'scoreA': '2',
-      'scoreB': '1',
-      'minute': 'Live',
-      'liveStatus': 'Match In Progress',
-      'venue': 'Play Arena (Pitch 1)',
-      'location': 'Koramangala, Bengaluru',
-      'playersCount': 10,
-      'latestEvent': 'Live on-pitch action',
-      'scoreboardConfig': {
-        'sport': 'football',
-        'turfName': 'Play Arena',
-        'teamA': 'Turf Titans',
-        'teamB': 'Kickers United',
-      },
-      'isLiveSync': true,
-    },
-  ];
+  List<Map<String, dynamic>> _matches = [];
 
   IconData _getSportIcon(String sport) {
     switch (sport.toLowerCase()) {
@@ -84,15 +60,15 @@ class _ActiveMatchesScreenState extends ConsumerState<ActiveMatchesScreen> with 
     setState(() => _isLoading = true);
     try {
       final dio = ref.read(dioClientProvider);
-      final res = await dio.get('/matches/', cancelToken: _cancelToken);
+      final res = await dio.get('/matches/', queryParameters: {'status': 'live'}, cancelToken: _cancelToken);
       final data = res.data;
-      if (data is List && data.isNotEmpty) {
-        final List<Map<String, dynamic>> loaded = [];
+      final List<Map<String, dynamic>> loaded = [];
+      if (data is List) {
         for (final item in data) {
           final sport = (item['sport_type'] as String? ?? 'Football');
           final turf = item['turf'] as Map<String, dynamic>?;
-          final turfName = turf?['name'] ?? 'Play Arena';
-          final location = turf?['location'] ?? 'Bengaluru';
+          final turfName = item['venue_name'] ?? turf?['name'] ?? 'Play Arena';
+          final location = item['location'] ?? turf?['location'] ?? 'Bengaluru';
           loaded.add({
             'id': item['id'],
             'sport': sport,
@@ -106,29 +82,30 @@ class _ActiveMatchesScreenState extends ConsumerState<ActiveMatchesScreen> with 
             'liveStatus': item['status'] == 'live' ? 'Match In Progress' : 'Certified Turf Match',
             'venue': turfName,
             'location': location,
-            'playersCount': 10,
+            'playersCount': item['current_players_count'] ?? 10,
             'latestEvent': 'Live on-pitch action',
             'scoreboardConfig': {
               'sport': sport.toLowerCase(),
               'turfName': turfName,
               'teamA': item['team_a_name'] ?? 'Team A',
               'teamB': item['team_b_name'] ?? 'Team B',
+              'id': item['id'],
+              'backendId': item['id'],
             },
             'isLiveSync': true,
           });
         }
-        if (mounted) {
-          setState(() {
-            _matches = loaded;
-            _isLoading = false;
-          });
-        }
-        return;
+      }
+      if (mounted) {
+        setState(() {
+          _matches = loaded;
+          _isLoading = false;
+        });
       }
     } catch (e) {
       debugPrint('Error loading active matches from backend: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
-    if (mounted) setState(() => _isLoading = false);
   }
 
   @override

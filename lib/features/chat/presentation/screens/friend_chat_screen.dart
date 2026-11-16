@@ -3,19 +3,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/core/services/local_chat_storage.dart';
 import 'package:turf_app/core/services/realtime_service.dart';
+import 'package:turf_app/core/services/session_manager.dart';
+import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
 
 class FriendChatScreen extends ConsumerStatefulWidget {
   final String friendName;
   final String? friendAvatar;
   final String friendStatus;
+  final int? friendId;
+  final String? friendUsername;
 
   const FriendChatScreen({
     super.key,
     required this.friendName,
     this.friendAvatar,
     this.friendStatus = 'Online',
+    this.friendId,
+    this.friendUsername,
   });
 
   @override
@@ -28,56 +36,180 @@ class _FriendChatScreenState extends ConsumerState<FriendChatScreen> {
   bool _isTyping = false;
   String _currentStatus = 'Online';
   StreamSubscription<Map<String, dynamic>>? _wsSubscription;
+  StreamSubscription<Map<String, dynamic>>? _channelSub;
 
   late List<Map<String, dynamic>> _messages;
 
-  String get _roomChannel => 'chat/friend_${widget.friendName.replaceAll(RegExp(r'\s+'), '_').toLowerCase()}';
+  String _getMyIdentifier() {
+    if (SessionManager.username != null && SessionManager.username!.trim().isNotEmpty) {
+      final u = SessionManager.username!.trim();
+      if (u.toLowerCase() != 'user' && u.toLowerCase() != 'player') return u;
+    }
+    final myProfile = ref.read(fetchUserProfileProvider).valueOrNull;
+    if (myProfile?.fullName != null &&
+        myProfile!.fullName!.trim().isNotEmpty &&
+        myProfile.fullName!.toLowerCase() != 'user' &&
+        myProfile.fullName!.toLowerCase() != 'player') {
+      return myProfile.fullName!.trim();
+    }
+    if (SessionManager.email != null && SessionManager.email!.contains('@')) {
+      return SessionManager.email!.split('@')[0].trim();
+    }
+    if (myProfile?.email != null && myProfile!.email!.contains('@')) {
+      return myProfile.email!.split('@')[0].trim();
+    }
+    return 'player';
+  }
+
+  String get _roomChannel {
+    final myNorm = _getMyIdentifier().replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+    final otherRaw = (widget.friendUsername != null && widget.friendUsername!.trim().isNotEmpty)
+        ? widget.friendUsername!
+        : widget.friendName;
+    final otherNorm = otherRaw.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+    final names = [myNorm, otherNorm]..sort();
+    return 'dm_${names[0]}_${names[1]}';
+  }
 
   @override
   void initState() {
     super.initState();
     _currentStatus = widget.friendStatus;
+    _messages = [];
+    _setupChat();
+  }
+
+  Future<void> _setupChat() async {
+    // 1. Instantly load locally cached messages
+    final cached = await LocalChatStorage.getMessages(_roomChannel);
+    if (mounted && cached.isNotEmpty) {
+      final myNorm = _getMyIdentifier().replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+      setState(() {
+        _messages = cached.map((c) {
+          final senderNorm = (c['sender'] ?? c['sender_name'] ?? '').toString().replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+          final bool isMe = c['isMe'] == true || (myNorm.isNotEmpty && senderNorm == myNorm);
+          return {
+            'id': c['id'],
+            'sender': isMe ? 'Me' : (c['sender'] ?? widget.friendName),
+            'isMe': isMe,
+            'text': c['text'] ?? '',
+            'time': c['time'] ?? 'Just now',
+          };
+        }).toList();
+      });
+      _scrollToBottom();
+    }
+
     _initRealtime();
-    _messages = [
-      {
-        'sender': widget.friendName,
-        'isMe': false,
-        'text': 'Hey bro! Are you free for a turf match today? ⚽',
-        'time': '10:15 AM',
-      },
-      {
-        'sender': 'Me',
-        'isMe': true,
-        'text': 'Yeah! What time are you guys thinking?',
-        'time': '10:18 AM',
-      },
-      {
-        'sender': widget.friendName,
-        'isMe': false,
-        'text': '7:00 PM to 8:30 PM at Play Arena. We need one more player for 5v5!',
-        'time': '10:20 AM',
-      },
-    ];
+    _fetchHistory();
+
+    // Re-verify when user profile resolves
+    ref.read(fetchUserProfileProvider.future).then((profile) {
+      if (mounted) {
+        if (profile?.fullName != null && profile!.fullName!.trim().isNotEmpty) {
+          SessionManager.setUsername(profile.fullName!.trim());
+        }
+        _fetchHistory();
+      }
+    }).catchError((_) {});
+  }
+
+  Future<void> _fetchHistory() async {
+    try {
+      final dio = ref.read(dioClientProvider);
+      final res = await dio.get('/community/chat/$_roomChannel/messages');
+      if (res.statusCode == 200 && res.data is List && (res.data as List).isNotEmpty) {
+        final myNorm = _getMyIdentifier().replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+        final myProfile = ref.read(fetchUserProfileProvider).valueOrNull;
+        final myId = myProfile?.id;
+
+        final history = (res.data as List).map((item) {
+          final m = Map<String, dynamic>.from(item as Map);
+          final senderId = m['sender_id'];
+          final rawSender = (m['sender'] ?? m['sender_name'] ?? '').toString().trim();
+          final senderNorm = rawSender.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+
+          final bool isMe = (myId != null && senderId != null && senderId == myId) ||
+              (myNorm.isNotEmpty && senderNorm == myNorm);
+
+          return {
+            'id': m['id'],
+            'sender': isMe ? 'Me' : (m['sender'] ?? widget.friendName),
+            'isMe': isMe,
+            'text': m['text'] ?? '',
+            'time': m['time'] ?? 'Just now',
+          };
+        }).toList();
+
+        if (mounted && history.isNotEmpty) {
+          setState(() {
+            _messages = history;
+          });
+          _scrollToBottom();
+          for (final h in history) {
+            LocalChatStorage.saveMessage(_roomChannel, h);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[FRIEND CHAT] Note: /community/chat messages fetch: $e');
+    }
   }
 
   void _initRealtime() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         final realtime = ref.read(realtimeServiceProvider);
-        _wsSubscription = realtime.connectToChannel(_roomChannel).listen((data) {
+
+        void handleIncoming(Map<String, dynamic> data) {
           if (!mounted) return;
-          if (data.containsKey('text') && data['sender'] != 'Me') {
-            setState(() {
-              _messages.add({
-                'sender': data['sender'] ?? widget.friendName,
+          if (data.containsKey('text')) {
+            final myNorm = _getMyIdentifier().replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+            final myProfile = ref.read(fetchUserProfileProvider).valueOrNull;
+            final myId = myProfile?.id;
+
+            final senderId = data['sender_id'] ?? data['senderId'];
+            final rawSender = (data['sender'] ?? data['sender_name'] ?? '').toString().trim();
+            final senderNorm = rawSender.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+
+            final bool isMe = (myId != null && senderId != null && senderId == myId) ||
+                (myNorm.isNotEmpty && senderNorm == myNorm);
+
+            final msgText = data['text']?.toString() ?? '';
+            final alreadyExists = _messages.any((m) =>
+                m['text'] == msgText && m['isMe'] == isMe);
+
+            if (!isMe && !alreadyExists) {
+              final newMsg = {
+                'id': data['id'] ?? DateTime.now().millisecondsSinceEpoch,
+                'sender': data['sender'] ?? data['sender_name'] ?? widget.friendName,
                 'isMe': false,
-                'text': data['text'],
+                'text': msgText,
                 'time': data['time'] ?? 'Just now',
+              };
+              setState(() {
+                _messages.add(newMsg);
               });
-            });
-            _scrollToBottom();
+              _scrollToBottom();
+
+              LocalChatStorage.saveMessage(_roomChannel, newMsg);
+              LocalChatStorage.updateConversation(
+                myUsername: _getMyIdentifier(),
+                partnerUsername: widget.friendUsername ?? widget.friendName,
+                partnerName: widget.friendName,
+                lastMsg: msgText,
+                time: data['time'] ?? 'Just now',
+                partnerAvatar: widget.friendAvatar,
+                partnerId: widget.friendId,
+              );
+            }
           }
-        });
+        }
+
+        _wsSubscription?.cancel();
+        _channelSub?.cancel();
+        _wsSubscription = realtime.connectToChannel('chat/$_roomChannel').listen(handleIncoming);
+        _channelSub = realtime.connectToChannel('channel/$_roomChannel').listen(handleIncoming);
       } catch (e) {
         debugPrint('Friend chat realtime connection error: $e');
       }
@@ -87,6 +219,7 @@ class _FriendChatScreenState extends ConsumerState<FriendChatScreen> {
   @override
   void dispose() {
     _wsSubscription?.cancel();
+    _channelSub?.cancel();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -111,13 +244,21 @@ class _FriendChatScreenState extends ConsumerState<FriendChatScreen> {
     final now = TimeOfDay.now();
     final timeStr = '${now.hourOfPeriod}:${now.minute.toString().padLeft(2, '0')} ${now.period == DayPeriod.am ? 'AM' : 'PM'}';
 
+    final myProfile = ref.read(fetchUserProfileProvider).valueOrNull;
+    final myId = myProfile?.id;
+    final myName = _getMyIdentifier();
+    final otherUsername = (widget.friendUsername ?? widget.friendName).trim().toLowerCase();
+
+    final localMsg = {
+      'id': DateTime.now().millisecondsSinceEpoch,
+      'sender': 'Me',
+      'isMe': true,
+      'text': text,
+      'time': timeStr,
+    };
+
     setState(() {
-      _messages.add({
-        'sender': 'Me',
-        'isMe': true,
-        'text': text,
-        'time': timeStr,
-      });
+      _messages.add(localMsg);
       if (customText == null) {
         _textController.clear();
         _isTyping = false;
@@ -125,58 +266,55 @@ class _FriendChatScreenState extends ConsumerState<FriendChatScreen> {
     });
     _scrollToBottom();
 
+    // 1. Immediately persist locally
+    LocalChatStorage.saveMessage(_roomChannel, localMsg);
+    LocalChatStorage.updateConversation(
+      myUsername: myName,
+      partnerUsername: otherUsername,
+      partnerName: widget.friendName,
+      lastMsg: text,
+      time: timeStr,
+      partnerAvatar: widget.friendAvatar,
+      partnerId: widget.friendId,
+    );
+
+    final payload = {
+      'id': localMsg['id'],
+      'room_id': _roomChannel,
+      'sender': myName,
+      'sender_name': myName,
+      'sender_id': myId,
+      'recipient_id': widget.friendId,
+      'recipient_username': otherUsername,
+      'text': text,
+      'time': timeStr,
+    };
+
+    // 2. Broadcast via WebSocket across room and recipient inbox
     try {
-      ref.read(realtimeServiceProvider).sendMessage({
-        'sender': 'Me',
+      final rt = ref.read(realtimeServiceProvider);
+      rt.sendMessage(payload, channelPath: 'chat/$_roomChannel');
+      rt.sendMessage(payload, channelPath: 'channel/$_roomChannel');
+      rt.sendMessage(payload, channelPath: 'channel/inbox_$otherUsername');
+      rt.sendMessage(payload, channelPath: 'chat_inbox');
+    } catch (e) {
+      debugPrint('[WS SEND ERROR] $e');
+    }
+
+    // 3. Persist to backend REST API
+    try {
+      ref.read(dioClientProvider).post('/community/chat/send', data: {
+        'room_id': _roomChannel,
+        'sender_name': myName,
+        'sender_id': myId,
+        'recipient_id': widget.friendId,
         'text': text,
-        'time': timeStr,
-      }, channelPath: _roomChannel);
-    } catch (_) {}
-
-    // Simulate WhatsApp-like live reply
-    _simulateFriendReply(text);
-  }
-
-  void _simulateFriendReply(String userMessage) {
-    // Show typing status after 800ms
-    Timer(const Duration(milliseconds: 800), () {
-      if (mounted) {
-        setState(() {
-          _currentStatus = 'typing...';
-        });
-      }
-    });
-
-    // Send reply after 2 seconds
-    Timer(const Duration(milliseconds: 2000), () {
-      if (!mounted) return;
-
-      String reply;
-      final lower = userMessage.toLowerCase();
-      if (lower.contains('in') || lower.contains('yes') || lower.contains('play') || lower.contains('sure')) {
-        reply = 'Awesome! Slot is locked in for 7:00 PM. See you on the turf! 🔥🧤';
-      } else if (lower.contains('where') || lower.contains('location') || lower.contains('turf')) {
-        reply = 'Play Arena, Court 2 (Koramangala). Floodlights are booked! 🏟️';
-      } else if (lower.contains('cost') || lower.contains('price') || lower.contains('pay')) {
-        reply = 'It’s ₹200 per player for the 90-min session. You can pay via wallet later 👍';
-      } else {
-        reply = 'Got it, bro! Let’s get that win today! ⚽💪';
-      }
-
-      final now = TimeOfDay.now();
-      final timeStr = '${now.hourOfPeriod}:${now.minute.toString().padLeft(2, '0')} ${now.period == DayPeriod.am ? 'AM' : 'PM'}';
-
-      setState(() {
-        _currentStatus = 'Online';
-        _messages.add({
-          'sender': widget.friendName,
-          'isMe': false,
-          'text': reply,
-          'time': timeStr,
-        });
+      }).catchError((err) {
+        debugPrint('[BACKEND SEND NOTE] $err');
       });
-      _scrollToBottom();
-    });
+    } catch (e) {
+      debugPrint('[DIO SEND NOTE] $e');
+    }
   }
 
   void _showAttachmentOptions() {

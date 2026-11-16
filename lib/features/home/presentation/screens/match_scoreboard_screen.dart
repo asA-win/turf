@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/services/realtime_service.dart';
+import 'package:turf_app/features/home/data/match_repository.dart';
 
 class MatchScoreboardScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? initialConfig;
@@ -81,19 +84,41 @@ class _MatchScoreboardScreenState extends ConsumerState<MatchScoreboardScreen> {
   // Timeline events for all sports
   final List<Map<String, String>> _timelineEvents = [];
 
+  int? _backendMatchId;
+  bool _isCreator = true;
+
   bool get isViewOnly =>
-      (widget.initialConfig?['isViewOnly'] as bool?) ??
-      (widget.initialConfig?['readOnly'] as bool?) ??
-      false;
+      !_isCreator ||
+      (widget.initialConfig?['isViewOnly'] as bool?) == true ||
+      (widget.initialConfig?['readOnly'] as bool?) == true;
 
   @override
   void initState() {
     super.initState();
     final cfg = widget.initialConfig ?? {};
+    _backendMatchId = (cfg['backendId'] as num?)?.toInt() ?? (cfg['id'] as num?)?.toInt();
+    if (cfg.containsKey('isCreator')) {
+      _isCreator = cfg['isCreator'] == true;
+    }
     _sport = (cfg['sport'] as String?)?.toLowerCase() ?? 'football';
     _turfName = (cfg['turfName'] as String?) ?? 'Green Field Arena';
     _teamA = (cfg['teamA'] as String?) ?? 'Team Alpha';
     _teamB = (cfg['teamB'] as String?) ?? 'Team Beta';
+
+    if (cfg['scoreA'] != null) {
+      final sA = int.tryParse(cfg['scoreA'].toString()) ?? 0;
+      _footballTeamAScore = sA;
+      _cricketRunsA = sA;
+      _badmintonScoreA = sA;
+      _basketballScoreA = sA;
+    }
+    if (cfg['scoreB'] != null) {
+      final sB = int.tryParse(cfg['scoreB'].toString()) ?? 0;
+      _footballTeamBScore = sB;
+      _cricketRunsB = sB;
+      _badmintonScoreB = sB;
+      _basketballScoreB = sB;
+    }
 
     if (cfg.containsKey('cricketOvers')) {
       _cricketMaxOvers = cfg['cricketOvers'] as int;
@@ -140,88 +165,52 @@ class _MatchScoreboardScreenState extends ConsumerState<MatchScoreboardScreen> {
       }
     }
 
-    if (_teamAMembers.isEmpty) {
-      _teamAMembers.addAll([
-        {'name': 'Rahul Sharma', 'role': 'Striker', 'number': '10', 'goals': 0, 'runs': 0, 'wickets': 0, 'points': 0, 'fouls': 0, 'yellowCards': 0, 'redCards': 0},
-        {'name': 'Vikram Rathore', 'role': 'Midfielder', 'number': '7', 'goals': 0, 'runs': 0, 'wickets': 0, 'points': 0, 'fouls': 0, 'yellowCards': 0, 'redCards': 0},
-        {'name': 'Karan Mehta', 'role': 'Goalkeeper', 'number': '1', 'goals': 0, 'runs': 0, 'wickets': 0, 'points': 0, 'fouls': 0, 'yellowCards': 0, 'redCards': 0},
-      ]);
-    }
-    if (_teamBMembers.isEmpty) {
-      _teamBMembers.addAll([
-        {'name': 'Harsh Varma', 'role': 'Striker', 'number': '9', 'goals': 0, 'runs': 0, 'wickets': 0, 'points': 0, 'fouls': 0, 'yellowCards': 0, 'redCards': 0},
-        {'name': 'David Miller', 'role': 'Midfielder', 'number': '8', 'goals': 0, 'runs': 0, 'wickets': 0, 'points': 0, 'fouls': 0, 'yellowCards': 0, 'redCards': 0},
-        {'name': 'Tanmay Roy', 'role': 'Goalkeeper', 'number': '12', 'goals': 0, 'runs': 0, 'wickets': 0, 'points': 0, 'fouls': 0, 'yellowCards': 0, 'redCards': 0},
-      ]);
-    }
-
-    _timelineEvents.add({
-      'time': '00:00',
-      'event': 'Match Started',
-      'player': 'Referee / Scorer',
-      'team': _turfName,
-    });
-
-    if (isViewOnly) {
-      if (_sport == 'football') {
-        _footballTeamAScore = 2;
-        _footballTeamBScore = 1;
-        _footballFoulsA = 4;
-        _footballFoulsB = 3;
-        _footballYellowCardsA = 1;
-        _footballYellowCardsB = 2;
-        _footballSeconds = 68 * 60;
-        _footballHalf = 2;
-        _isTimerRunning = true;
-        _gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          if (!mounted) return;
-          setState(() {
-            _footballSeconds++;
-          });
-        });
-        _timelineEvents.addAll([
-          {'time': "18'", 'event': 'Goal by Vikram', 'player': 'Vikram', 'team': _teamA},
-          {'time': "34'", 'event': 'Yellow Card - Harsh', 'player': 'Harsh', 'team': _teamB},
-          {'time': "41'", 'event': 'Goal by David', 'player': 'David', 'team': _teamB},
-          {'time': "54'", 'event': 'Goal by Rahul', 'player': 'Rahul', 'team': _teamA},
-        ]);
-      } else if (_sport == 'cricket') {
-        _cricketRunsA = 78;
-        _cricketWicketsA = 3;
-        _cricketBallsA = 48;
-        _cricketRunsB = 62;
-        _cricketWicketsB = 5;
-        _cricketBallsB = 40;
-        _cricketCurrentInning = 2;
-        _cricketCurrentOverBalls.addAll(['1', '4', 'W', '0']);
-        _timelineEvents.addAll([
-          {'time': "0.1 ov", 'event': 'Single off cover', 'player': 'Arun K.', 'team': _teamB},
-          {'time': "3.2 ov", 'event': 'SIX over long-on', 'player': 'Arun K.', 'team': _teamB},
-          {'time': "5.4 ov", 'event': 'WICKET! Clean bowled', 'player': 'Kiran P.', 'team': _teamA},
-        ]);
-      } else if (_sport == 'badminton' || _sport == 'tennis') {
-        _badmintonScoreA = 14;
-        _badmintonScoreB = 11;
-        _badmintonCurrentSet = 3;
-        _badmintonSetsWonA = 1;
-        _badmintonSetsWonB = 1;
-        _timelineEvents.addAll([
-          {'time': "Set 1", 'event': 'Set won by $_teamA (21-18)', 'player': _teamA, 'team': _teamA},
-          {'time': "Set 2", 'event': 'Set won by $_teamB (21-17)', 'player': _teamB, 'team': _teamB},
-          {'time': "Set 3", 'event': 'Smash winner by $_teamA', 'player': _teamA, 'team': _teamA},
-        ]);
-      } else if (_sport == 'basketball') {
-        _basketballScoreA = 42;
-        _basketballScoreB = 38;
-        _basketballQuarter = 3;
-        _basketballFoulsA = 3;
-        _basketballFoulsB = 4;
-        _timelineEvents.addAll([
-          {'time': "Q1", 'event': 'End of Q1: 14 - 12', 'player': 'Referee', 'team': _turfName},
-          {'time': "Q2", 'event': 'End of Q2: 30 - 27', 'player': 'Referee', 'team': _turfName},
-          {'time': "Q3 02:45", 'event': '3-Pointer by Sameer', 'player': 'Sameer', 'team': _teamA},
-        ]);
+    if (cfg['participants'] is List) {
+      for (final p in (cfg['participants'] as List)) {
+        if (p is Map) {
+          final pMap = Map<String, dynamic>.from(p);
+          final team = pMap['team']?.toString() ?? 'A';
+          final member = {
+            'name': pMap['playerName']?.toString() ?? 'Player',
+            'role': pMap['playerRole']?.toString() ?? 'Player',
+            'number': pMap['jerseyNumber']?.toString() ?? '',
+            'goals': 0,
+            'runs': 0,
+            'wickets': 0,
+            'points': 0,
+            'fouls': 0,
+            'yellowCards': 0,
+            'redCards': 0,
+          };
+          if (team == 'A') {
+            _teamAMembers.add(member);
+          } else {
+            _teamBMembers.add(member);
+          }
+        }
       }
+    }
+
+    if (cfg['timelineEvents'] is List) {
+      for (final ev in (cfg['timelineEvents'] as List)) {
+        if (ev is Map) {
+          _timelineEvents.add({
+            'time': ev['minute']?.toString() ?? '00:00',
+            'event': ev['description']?.toString() ?? ev['event_type']?.toString().toUpperCase() ?? 'EVENT',
+            'player': ev['player_name']?.toString() ?? 'Player',
+            'team': ev['team'] == 'A' ? _teamA : _teamB,
+          });
+        }
+      }
+    }
+
+    if (_timelineEvents.isEmpty) {
+      _timelineEvents.add({
+        'time': '00:00',
+        'event': 'Match Started',
+        'player': 'Official Scorer',
+        'team': _turfName,
+      });
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -234,22 +223,85 @@ class _MatchScoreboardScreenState extends ConsumerState<MatchScoreboardScreen> {
       final realtime = ref.read(realtimeServiceProvider);
       _subscription = realtime.connectToChannel('scoreboard').listen((data) {
         if (!mounted) return;
+        final matchId = (data['match_id'] as num?)?.toInt();
+        if (_backendMatchId != null && matchId != null && matchId != _backendMatchId) {
+          return;
+        }
+
         setState(() {
-          if (_sport == 'football') {
-            if (data.containsKey('team_a_score')) _footballTeamAScore = data['team_a_score'];
-            if (data.containsKey('team_b_score')) _footballTeamBScore = data['team_b_score'];
-          } else if (_sport == 'cricket') {
-            if (data.containsKey('runs')) {
-              if (_cricketCurrentInning == 1) {
-                _cricketRunsA = data['runs'];
-              } else {
-                _cricketRunsB = data['runs'];
-              }
-            }
+          if (data.containsKey('team_a_score')) {
+            final sA = (data['team_a_score'] as num?)?.toInt() ?? 0;
+            _footballTeamAScore = sA;
+            _cricketRunsA = sA;
+            _badmintonScoreA = sA;
+            _basketballScoreA = sA;
+          }
+          if (data.containsKey('team_b_score')) {
+            final sB = (data['team_b_score'] as num?)?.toInt() ?? 0;
+            _footballTeamBScore = sB;
+            _cricketRunsB = sB;
+            _badmintonScoreB = sB;
+            _basketballScoreB = sB;
+          }
+          if (data.containsKey('event') && data['event'] is Map) {
+            final ev = Map<String, dynamic>.from(data['event'] as Map);
+            _timelineEvents.insert(0, {
+              'time': ev['minute']?.toString() ?? 'Live',
+              'event': ev['description']?.toString() ?? ev['event_type']?.toString().toUpperCase() ?? 'EVENT',
+              'player': ev['player_name']?.toString() ?? 'Player',
+              'team': ev['team'] == 'A' ? _teamA : _teamB,
+            });
           }
         });
       });
     } catch (_) {}
+  }
+
+  void _syncToBackend({String? eventType, String? player, String? team, String? description}) {
+    final matchId = _backendMatchId;
+    if (matchId == null || matchId <= 0 || isViewOnly) return;
+
+    try {
+      final dio = ref.read(dioClientProvider);
+      int scoreA = 0;
+      int scoreB = 0;
+      if (_sport == 'football') {
+        scoreA = _footballTeamAScore;
+        scoreB = _footballTeamBScore;
+      } else if (_sport == 'cricket') {
+        scoreA = _cricketRunsA;
+        scoreB = _cricketRunsB;
+      } else if (_sport == 'badminton' || _sport == 'tennis') {
+        scoreA = _badmintonScoreA;
+        scoreB = _badmintonScoreB;
+      } else if (_sport == 'basketball') {
+        scoreA = _basketballScoreA;
+        scoreB = _basketballScoreB;
+      }
+
+      MatchRepository.instance.updateScore(
+        matchId,
+        dio: dio,
+        scoreA: scoreA,
+        scoreB: scoreB,
+        status: 'live',
+      );
+
+      if (eventType != null) {
+        MatchRepository.instance.addTimelineEvent(
+          matchId,
+          dio: dio,
+          eventType: eventType,
+          minute: _formatTime(_footballSeconds),
+          team: team == _teamA ? 'A' : 'B',
+          playerName: player ?? 'Player',
+          description: description,
+          scoreSnapshot: '$scoreA - $scoreB',
+        );
+      }
+    } catch (e) {
+      debugPrint('[SCOREBOARD SYNC] Note: $e');
+    }
   }
 
   void _startStopTimer() {
@@ -312,6 +364,8 @@ class _MatchScoreboardScreenState extends ConsumerState<MatchScoreboardScreen> {
         'player': scorer,
         'team': team,
       });
+
+      _syncToBackend(eventType: 'goal', player: scorer, team: team, description: 'Goal scored by $scorer');
 
       try {
         ref.read(realtimeServiceProvider).sendMessage({
@@ -424,6 +478,7 @@ class _MatchScoreboardScreenState extends ConsumerState<MatchScoreboardScreen> {
         _footballTeamBScore--;
       }
     });
+    _syncToBackend();
   }
 
   // --- CRICKET ACTIONS ---
@@ -655,6 +710,36 @@ class _MatchScoreboardScreenState extends ConsumerState<MatchScoreboardScreen> {
         winnerText = '🏆 $_teamA Won!';
       } else if (_basketballScoreB > _basketballScoreA) {
         winnerText = '🏆 $_teamB Won!';
+      }
+    }
+
+    final matchId = _backendMatchId;
+    if (matchId != null && matchId > 0 && !isViewOnly) {
+      try {
+        final dio = ref.read(dioClientProvider);
+        int finalScoreA = 0;
+        int finalScoreB = 0;
+        if (_sport == 'football') {
+          finalScoreA = _footballTeamAScore;
+          finalScoreB = _footballTeamBScore;
+        } else if (_sport == 'cricket') {
+          finalScoreA = _cricketRunsA;
+          finalScoreB = _cricketRunsB;
+        } else if (_sport == 'badminton' || _sport == 'tennis') {
+          finalScoreA = _badmintonScoreA;
+          finalScoreB = _badmintonScoreB;
+        } else if (_sport == 'basketball') {
+          finalScoreA = _basketballScoreA;
+          finalScoreB = _basketballScoreB;
+        }
+        MatchRepository.instance.finishMatch(
+          matchId,
+          dio: dio,
+          finalScoreA: finalScoreA,
+          finalScoreB: finalScoreB,
+        );
+      } catch (e) {
+        debugPrint('[SCOREBOARD CONCLUDE] Note: $e');
       }
     }
 

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
 import 'package:turf_app/features/tournament/data/tournament_repository.dart';
 
 class CreateTournamentScreen extends ConsumerStatefulWidget {
@@ -178,6 +179,8 @@ class _CreateTournamentScreenState extends ConsumerState<CreateTournamentScreen>
     }
   }
 
+  bool _isSubmitting = false;
+
   void _submitTournament() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -189,69 +192,64 @@ class _CreateTournamentScreenState extends ConsumerState<CreateTournamentScreen>
       return;
     }
 
-    final sportMeta = _sportsList.firstWhere(
-      (s) => s['name'] == _selectedSport,
-      orElse: () => _sportsList.first,
-    );
-
     final feeAmount = _isFreeEntry ? 0 : int.tryParse(_entryFeeController.text.trim()) ?? 0;
     final prizeAmount = int.tryParse(_prizePoolController.text.trim()) ?? 50000;
-    final distance = _areaDistances[_selectedArea] ?? 2.5;
 
-    final newTournament = {
-      'id': 'tourn_${DateTime.now().millisecondsSinceEpoch}',
-      'name': _nameController.text.trim(),
+    final userProfile = ref.read(fetchUserProfileProvider).valueOrNull;
+    final dio = ref.read(dioClientProvider);
+
+    setState(() => _isSubmitting = true);
+
+    final payload = {
+      'title': _nameController.text.trim(),
       'sport': _selectedSport,
-      'sportIcon': sportMeta['icon'] as IconData,
-      'accentColor': sportMeta['color'] as Color,
-      'format': '$_selectedFormat • $_totalSpots Teams',
-      'formatType': _selectedFormat,
-      'status': 'Open Entry',
-      'statusBadge': 'REGISTRATION OPEN',
-      'badgeColor': AppTheme.primaryGreen,
+      'format': _selectedFormat,
+      'level': _selectedLevel,
       'venue': '${_venueController.text.trim()}, $_selectedArea',
       'area': _selectedArea,
       'city': 'Bangalore',
-      'distanceKm': distance,
-      'dates': '${DateFormat('dd MMM').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}',
-      'prizePool': '₹${NumberFormat('#,##,###').format(prizeAmount)}',
-      'prizePoolAmount': prizeAmount,
-      'entryFee': _isFreeEntry ? 'Free Entry' : '₹${NumberFormat('#,##,###').format(feeAmount)} / team',
-      'entryFeeAmount': feeAmount,
-      'spotsFilled': 1,
-      'totalSpots': _totalSpots,
-      'isFillingFast': false,
-      'isWeekend': _startDate.weekday == DateTime.saturday || _startDate.weekday == DateTime.sunday,
-      'organizer': _organizerController.text.trim(),
-      'organizerPhone': _phoneController.text.trim(),
-      'image': _bannerPresets[_selectedBannerIndex]['url']!,
-      'isSpotlight': false,
+      'banner_image': _bannerPresets[_selectedBannerIndex]['url']!,
+      'prize_pool': prizeAmount.toDouble(),
+      'entry_fee': feeAmount.toDouble(),
+      'total_teams': _totalSpots,
+      'start_date': DateFormat('yyyy-MM-dd').format(_startDate),
+      'end_date': DateFormat('yyyy-MM-dd').format(_endDate),
+      'registration_deadline': DateFormat('yyyy-MM-dd').format(_startDate.subtract(const Duration(days: 1))),
       'rules': _rulesController.text.trim(),
-      'level': _selectedLevel,
-      'createdBy': 'You',
-      'isCreator': true,
+      'contact_phone': _phoneController.text.trim(),
+      'organizer_name': _organizerController.text.trim(),
     };
 
-    // Post to live backend database
+    Map<String, dynamic>? createdTournament;
+
     try {
-      final dio = ref.read(dioClientProvider);
-      final res = await dio.post('/tournaments/', data: {
-        'title': _nameController.text.trim(),
-        'prize_pool': double.tryParse(_prizePoolController.text.trim()) ?? 100000.0,
-        'total_teams': _totalSpots,
-        'format': _selectedFormat,
-        'status': 'upcoming',
-      });
-      if (res.data != null && res.data['id'] != null) {
-        newTournament['backendId'] = res.data['id'];
-        newTournament['id'] = 'tourn_${res.data['id']}';
-      }
+      createdTournament = await TournamentRepository.instance.createTournament(
+        dio,
+        payload,
+        currentUserId: userProfile?.id,
+      );
     } catch (e) {
-      debugPrint('Error creating tournament on backend: $e');
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to publish tournament: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
     }
 
-    // Add to shared repository
-    TournamentRepository.instance.addTournament(newTournament);
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
+    final newTournament = createdTournament ?? {
+      'name': _nameController.text.trim(),
+      'venue': '${_venueController.text.trim()}, $_selectedArea',
+      'prizePool': '₹${NumberFormat('#,##,###').format(prizeAmount)}',
+      'distanceKm': _areaDistances[_selectedArea] ?? 2.5,
+    };
 
     // Show celebration dialog
     showDialog(
@@ -902,10 +900,16 @@ class _CreateTournamentScreenState extends ConsumerState<CreateTournamentScreen>
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton.icon(
-                    onPressed: _submitTournament,
-                    icon: const Icon(Icons.rocket_launch_rounded, color: Colors.black, size: 20),
+                    onPressed: _isSubmitting ? null : _submitTournament,
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                          )
+                        : const Icon(Icons.rocket_launch_rounded, color: Colors.black, size: 20),
                     label: Text(
-                      'Publish Tournament',
+                      _isSubmitting ? 'Publishing...' : 'Publish Tournament',
                       style: GoogleFonts.poppins(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,

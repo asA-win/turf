@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
 
-class TournamentRegisterScreen extends StatefulWidget {
+class TournamentRegisterScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? tournament;
 
   const TournamentRegisterScreen({super.key, this.tournament});
 
   @override
-  State<TournamentRegisterScreen> createState() => _TournamentRegisterScreenState();
+  ConsumerState<TournamentRegisterScreen> createState() => _TournamentRegisterScreenState();
 }
 
 class _TournamentPlayerItem {
@@ -34,7 +36,7 @@ class _TournamentPlayerItem {
   }
 }
 
-class _TournamentRegisterScreenState extends State<TournamentRegisterScreen> {
+class _TournamentRegisterScreenState extends ConsumerState<TournamentRegisterScreen> {
   final _formKey = GlobalKey<FormState>();
 
   // Team Details
@@ -80,48 +82,32 @@ class _TournamentRegisterScreenState extends State<TournamentRegisterScreen> {
   @override
   void initState() {
     super.initState();
-    final t = widget.tournament ?? {};
-    final sport = (t['sport'] as String?)?.toLowerCase() ?? 'football';
+    final userProfile = ref.read(fetchUserProfileProvider).valueOrNull;
 
-    _teamNameController = TextEditingController(text: 'Thunder Strikers FC');
-    _teamTagController = TextEditingController(text: 'TSF');
-    _captainNameController = TextEditingController(text: 'Rahul Sharma');
-    _contactPhoneController = TextEditingController(text: '+91 98765 43210');
-    _contactEmailController = TextEditingController(text: 'rahul.sharma@gmail.com');
-    _emergencyContactController = TextEditingController(text: '+91 91234 56789');
+    _teamNameController = TextEditingController();
+    _teamTagController = TextEditingController();
+    _captainNameController = TextEditingController(text: userProfile?.fullName ?? '');
+    _contactPhoneController = TextEditingController(text: userProfile?.phone ?? '');
+    _contactEmailController = TextEditingController(text: userProfile?.email ?? '');
+    _emergencyContactController = TextEditingController();
     _specialRequestsController = TextEditingController();
 
-    _initializeDefaultPlayers(sport);
-  }
-
-  void _initializeDefaultPlayers(String sport) {
-    if (sport == 'cricket') {
-      _players.addAll([
-        _TournamentPlayerItem(name: 'Rahul Sharma', role: 'Captain (Batsman)', jersey: '7'),
-        _TournamentPlayerItem(name: 'Karthik Rao', role: 'Vice Captain (All-Rounder)', jersey: '18'),
-        _TournamentPlayerItem(name: 'Aditya Nair', role: 'Wicket-Keeper', jersey: '1'),
-        _TournamentPlayerItem(name: 'Siddharth M.', role: 'Fast Bowler', jersey: '24'),
-        _TournamentPlayerItem(name: 'Manish Kumar', role: 'Spinner', jersey: '99'),
-        _TournamentPlayerItem(name: 'Arjun Das', role: 'Middle-Order Batsman', jersey: '45'),
-        _TournamentPlayerItem(name: 'Sameer Khan', role: 'Finisher / All-Rounder', jersey: '11'),
-      ]);
-    } else if (sport == 'badminton' || sport == 'tennis') {
-      _players.addAll([
-        _TournamentPlayerItem(name: 'Rahul Sharma', role: 'Captain / Main Player', jersey: '1'),
-        _TournamentPlayerItem(name: 'Karthik Rao', role: 'Doubles Partner', jersey: '2'),
-        _TournamentPlayerItem(name: 'Siddharth M.', role: 'Substitute / Reserve', jersey: '3'),
-      ]);
-    } else {
-      // Default Football / Other
-      _players.addAll([
-        _TournamentPlayerItem(name: 'Rahul Sharma', role: 'Captain (Striker)', jersey: '10'),
-        _TournamentPlayerItem(name: 'Karthik Rao', role: 'Vice Captain (Midfielder)', jersey: '8'),
-        _TournamentPlayerItem(name: 'Aditya Nair', role: 'Goalkeeper', jersey: '1'),
-        _TournamentPlayerItem(name: 'Siddharth M.', role: 'Center Back', jersey: '4'),
-        _TournamentPlayerItem(name: 'Manish Kumar', role: 'Winger', jersey: '7'),
-        _TournamentPlayerItem(name: 'Arjun Das', role: 'Defender', jersey: '3'),
-      ]);
-    }
+    // Initialize with captain and 1 player slot
+    _players.add(
+      _TournamentPlayerItem(
+        name: userProfile?.fullName ?? '',
+        role: 'Captain',
+        jersey: '1',
+        phone: userProfile?.phone ?? '',
+      ),
+    );
+    _players.add(
+      _TournamentPlayerItem(
+        name: '',
+        role: 'Player 2',
+        jersey: '2',
+      ),
+    );
   }
 
   List<String> _getRolesForSport(String sport) {
@@ -173,10 +159,10 @@ class _TournamentRegisterScreenState extends State<TournamentRegisterScreen> {
   }
 
   void _removePlayer(int index) {
-    if (_players.length <= 2) {
+    if (_players.length <= 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('At least 2 squad members are required for tournament registration.'),
+          content: Text('At least 1 squad member (the captain) is required.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -186,24 +172,6 @@ class _TournamentRegisterScreenState extends State<TournamentRegisterScreen> {
       final item = _players.removeAt(index);
       item.dispose();
     });
-  }
-
-  void _autoFillFullSquad() {
-    final sport = (widget.tournament?['sport'] as String?)?.toLowerCase() ?? 'football';
-    setState(() {
-      for (final p in _players) {
-        p.dispose();
-      }
-      _players.clear();
-      _initializeDefaultPlayers(sport);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Squad roster populated with recommended roles and numbers!'),
-        backgroundColor: AppTheme.primaryGreen,
-        duration: Duration(seconds: 2),
-      ),
-    );
   }
 
   void _proceedToRules() {
@@ -279,11 +247,12 @@ class _TournamentRegisterScreenState extends State<TournamentRegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final t = widget.tournament ?? {};
-    final tournName = t['name'] as String? ?? 'Tournament Championship';
+    final tournName = t['name'] as String? ?? t['title'] as String? ?? 'Tournament Championship';
     final sport = t['sport'] as String? ?? 'Football';
     final venue = t['venue'] as String? ?? 'Play Arena, Bangalore';
     final dates = t['dates'] as String? ?? 'Upcoming Weekend';
-    final entryFee = t['entryFee'] as String? ?? 'Free Entry';
+    final entryFee = t['entryFee'] as String? ??
+        (t['entry_fee'] != null ? (t['entry_fee'] == 0 ? 'Free Entry' : '₹${t['entry_fee']}') : 'Free Entry');
     final format = t['format'] as String? ?? 'Knockout Stage';
     final sportIcon = (t['sportIcon'] as IconData?) ?? Icons.emoji_events;
     final accentColor = (t['accentColor'] as Color?) ?? AppTheme.primaryGreen;
@@ -521,16 +490,16 @@ class _TournamentRegisterScreenState extends State<TournamentRegisterScreen> {
           ],
         ),
         InkWell(
-          onTap: _autoFillFullSquad,
+          onTap: _addPlayer,
           borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             child: Row(
               children: [
-                const Icon(Icons.auto_fix_high, size: 13, color: AppTheme.primaryGreen),
+                const Icon(Icons.add_circle_outline, size: 14, color: AppTheme.primaryGreen),
                 const SizedBox(width: 4),
                 Text(
-                  'Auto-fill Squad',
+                  'Add Player',
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,

@@ -47,18 +47,23 @@ async def test_get_stocks(async_client):
 
 @pytest.mark.asyncio
 async def test_get_match_stats(async_client):
-    matches_res = await async_client.get("/api/v1/matches/")
-    assert matches_res.status_code == 200
-    matches = matches_res.json()
-    assert len(matches) >= 1
-    match_id = matches[0]["id"]
+    from app.core.security import create_access_token
+    token = create_access_token({"uid": "test_user_stats", "user_id": 999, "role": "user"})
+    headers = {"Authorization": f"Bearer {token}"}
+    create_res = await async_client.post(
+        "/api/v1/matches/",
+        json={"title": "Stats Test Match", "team_a_name": "Team A", "team_b_name": "Team B"},
+        headers=headers,
+    )
+    assert create_res.status_code == 200
+    match_id = create_res.json()["id"]
 
     stats_res = await async_client.get(f"/api/v1/matches/{match_id}/stats")
     assert stats_res.status_code == 200
     stats = stats_res.json()
-    assert "best_player_of_match" in stats
-    assert "top_scorer" in stats
-    assert stats["best_player_of_match"]["name"] is not None
+    assert stats["match_id"] == match_id
+    assert "mvp" in stats
+    assert "team_metrics" in stats
 
 @pytest.mark.asyncio
 async def test_ws_manager_broadcast():

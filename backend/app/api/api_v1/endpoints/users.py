@@ -6,10 +6,10 @@ from typing import List, Optional
 from app.db.session import get_db
 from app.db.models import User, FCMToken, Wallet, WalletTransaction, Referral
 from app.schemas.schemas import (
-    User as UserSchema, UserCreate, FCMTokenCreate, FCMToken as FCMTokenSchema,
+    User as UserSchema, UserCreate, UserUpdate, FCMTokenCreate, FCMToken as FCMTokenSchema,
     UserUpdateRole, WalletResponse, WalletTransactionResponse, ReferralResponse
 )
-from app.core.security import get_current_user
+from app.core.security import get_current_user, hash_password
 from app.core.websocket_manager import ws_manager
 import logging
 
@@ -39,6 +39,62 @@ async def check_availability(
         if query.scalar_one_or_none():
             return {"available": False, "field": "phone", "message": "Phone number is already registered"}
     return {"available": True, "message": "Available"}
+
+@router.get("/search")
+async def search_users(
+    q: Optional[str] = "",
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Search platform players by username, full name, email, or phone.
+    Returns list of matching users formatted for community friends and messaging.
+    """
+    query_str = (q or "").strip().lower()
+    # Strip any leading @ symbols entered by user
+    clean_q = query_str.lstrip("@").strip()
+
+    if clean_q:
+        term = f"%{clean_q}%"
+        result = await db.execute(
+            select(User).filter(
+                (User.full_name.ilike(term)) |
+                (User.email.ilike(term)) |
+                (User.phone.ilike(term)) |
+                (User.firebase_uid.ilike(term))
+            ).limit(25)
+        )
+    else:
+        result = await db.execute(select(User).limit(25))
+
+    users = result.scalars().all()
+    out = []
+    seen_ids = set()
+
+    for u in users:
+        seen_ids.add(u.id)
+        # Derive clean username from full_name or email
+        raw_name = (u.full_name or "").strip()
+        if raw_name and raw_name.lower() not in ["user", "player", "null", "none"]:
+            username = raw_name
+        elif u.email:
+            username = u.email.split("@")[0]
+        else:
+            username = f"player_{u.id}"
+
+        display_name = raw_name if raw_name else (u.email.split("@")[0].capitalize() if u.email else f"Player {u.id}")
+        out.append({
+            "id": u.id,
+            "name": display_name,
+            "username": username,
+            "email": u.email,
+            "role": u.role or "Active Player",
+            "phone": u.phone or "",
+            "avatar": f"https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100",
+            "is_online": True,
+            "status": "Active player",
+        })
+
+    return out
 
 @router.get("/", response_model=List[UserSchema])
 async def read_users(
@@ -115,11 +171,22 @@ async def read_user_me(
     current_user: dict = Depends(get_current_user)
 ):
     firebase_uid = current_user.get("uid")
-    logger.info(f"read_user_me: firebase_uid={firebase_uid}")
-    result = await db.execute(select(User).filter(User.firebase_uid == firebase_uid))
-    user = result.scalar_one_or_none()
+    user_id = current_user.get("user_id")
+    email = current_user.get("email")
+
+    user = None
+    if user_id:
+        res = await db.execute(select(User).filter(User.id == int(user_id)))
+        user = res.scalar_one_or_none()
+    if not user and firebase_uid:
+        res = await db.execute(select(User).filter(User.firebase_uid == str(firebase_uid)))
+        user = res.scalar_one_or_none()
+    if not user and email:
+        res = await db.execute(select(User).filter(User.email == str(email).lower()))
+        user = res.scalar_one_or_none()
+
     if user is None:
-        logger.warning(f"read_user_me: User not found in DB for firebase_uid={firebase_uid}")
+        logger.warning(f"read_user_me: User not found in DB for user_id={user_id}, uid={firebase_uid}, email={email}")
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
@@ -139,6 +206,10 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
         full_name = user.full_name or db_user.full_name or "User"
         db_user.full_name = full_name
         db_user.email = email
+        if user.password:
+            db_user.hashed_password = hash_password(user.password)
+        if user.phone:
+            db_user.phone = user.phone
 
         # Assign roles based on specific emails during sync
         if email == "admin@example.com":
@@ -153,8 +224,13 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     
     logger.info(f"create_user: Creating NEW user for firebase_uid={user.firebase_uid}")
     user_data = user.model_dump()
+    raw_password = user_data.pop("password", None)
+    if raw_password:
+        user_data["hashed_password"] = hash_password(raw_password)
     user_data["email"] = email
     user_data["full_name"] = user.full_name or "User"
+    user_data["owner_status"] = "approved"
+    user_data["is_verified"] = True
     
     # Assign roles based on specific emails
     if user_data.get("email") == "admin@example.com":
@@ -164,6 +240,15 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     
     new_user = User(**user_data)
     db.add(new_user)
+    await db.flush()
+
+    # Ensure new customer gets an initialized wallet
+    try:
+        wallet = Wallet(user_id=new_user.id, balance=500.0, coins=100)
+        db.add(wallet)
+    except Exception as e:
+        logger.warning(f"Wallet creation notice: {e}")
+
     await db.commit()
     await db.refresh(new_user)
 
@@ -182,7 +267,7 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
 
 @router.put("/me", response_model=UserSchema)
 async def update_user_me(
-    user_in: UserCreate,
+    user_in: UserUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):

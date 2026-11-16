@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/home/data/match_repository.dart';
 
 class MatchStatsScreen extends StatefulWidget {
   final String? matchId;
@@ -27,10 +28,16 @@ class _MatchStatsScreenState extends State<MatchStatsScreen> {
   StreamSubscription<Map<String, dynamic>>? _scoreboardSub;
   String? _liveScoreDisplay;
 
+  Map<String, dynamic>? _loadedMatch;
+  Map<String, dynamic>? get _effectiveData => _loadedMatch ?? widget.matchData;
+
   @override
   void initState() {
     super.initState();
     _currentSport = _resolveInitialSport();
+    if (widget.matchId != null) {
+      _loadBackendData();
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         final container = ProviderScope.containerOf(context, listen: false);
@@ -54,6 +61,18 @@ class _MatchStatsScreenState extends State<MatchStatsScreen> {
     });
   }
 
+  Future<void> _loadBackendData() async {
+    try {
+      final details = await MatchRepository.instance.fetchMatchDetails(widget.matchId!);
+      if (mounted && details != null) {
+        setState(() {
+          _loadedMatch = details;
+          _currentSport = _resolveInitialSport();
+        });
+      }
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     _scoreboardSub?.cancel();
@@ -61,10 +80,11 @@ class _MatchStatsScreenState extends State<MatchStatsScreen> {
   }
 
   String _resolveInitialSport() {
-    if (widget.matchData != null) {
-      final s = (widget.matchData!['sport'] ??
-              widget.matchData!['sportType'] ??
-              widget.matchData!['sport_type'] ??
+    final data = _effectiveData;
+    if (data != null) {
+      final s = (data['sport'] ??
+              data['sportType'] ??
+              data['sport_type'] ??
               '')
           .toString()
           .toLowerCase();
@@ -109,11 +129,15 @@ class _MatchStatsScreenState extends State<MatchStatsScreen> {
 
   // --- Dynamic Match Info Extraction ---
   String get _turfName {
-    if (widget.matchData != null && widget.matchData!['turfName'] != null) {
-      return widget.matchData!['turfName'].toString();
+    final data = _effectiveData;
+    if (data != null && data['turfName'] != null) {
+      return data['turfName'].toString();
     }
-    if (widget.matchData != null && widget.matchData!['venue'] != null) {
-      return widget.matchData!['venue'].toString();
+    if (data != null && data['venue'] != null) {
+      return data['venue'].toString();
+    }
+    if (data != null && data['venue_name'] != null) {
+      return data['venue_name'].toString();
     }
     switch (_currentSport) {
       case 'Cricket':
@@ -130,11 +154,12 @@ class _MatchStatsScreenState extends State<MatchStatsScreen> {
   }
 
   String get _teamAName {
-    if (widget.matchData != null && widget.matchData!['teamA'] != null) {
-      return widget.matchData!['teamA'].toString();
+    final data = _effectiveData;
+    if (data != null && data['teamA'] != null) {
+      return data['teamA'].toString();
     }
-    if (widget.matchData != null && widget.matchData!['team_a_name'] != null) {
-      return widget.matchData!['team_a_name'].toString();
+    if (data != null && data['team_a_name'] != null) {
+      return data['team_a_name'].toString();
     }
     switch (_currentSport) {
       case 'Cricket':
@@ -151,11 +176,12 @@ class _MatchStatsScreenState extends State<MatchStatsScreen> {
   }
 
   String get _teamBName {
-    if (widget.matchData != null && widget.matchData!['teamB'] != null) {
-      return widget.matchData!['teamB'].toString();
+    final data = _effectiveData;
+    if (data != null && data['teamB'] != null) {
+      return data['teamB'].toString();
     }
-    if (widget.matchData != null && widget.matchData!['team_b_name'] != null) {
-      return widget.matchData!['team_b_name'].toString();
+    if (data != null && data['team_b_name'] != null) {
+      return data['team_b_name'].toString();
     }
     switch (_currentSport) {
       case 'Cricket':
@@ -173,13 +199,19 @@ class _MatchStatsScreenState extends State<MatchStatsScreen> {
 
   String get _scoreDisplay {
     if (_liveScoreDisplay != null) return _liveScoreDisplay!;
-    if (widget.matchData != null && widget.matchData!['scoreDisplay'] != null) {
-      return widget.matchData!['scoreDisplay'].toString();
+    final data = _effectiveData;
+    if (data != null && data['scoreDisplay'] != null) {
+      return data['scoreDisplay'].toString();
     }
-    if (widget.matchData != null &&
-        widget.matchData!['scoreA'] != null &&
-        widget.matchData!['scoreB'] != null) {
-      return '${widget.matchData!['scoreA']} vs ${widget.matchData!['scoreB']}';
+    if (data != null &&
+        data['scoreA'] != null &&
+        data['scoreB'] != null) {
+      return '${data['scoreA']} vs ${data['scoreB']}';
+    }
+    if (data != null &&
+        data['team_a_score'] != null &&
+        data['team_b_score'] != null) {
+      return '${data['team_a_score']} vs ${data['team_b_score']}';
     }
     switch (_currentSport) {
       case 'Cricket':
@@ -196,8 +228,9 @@ class _MatchStatsScreenState extends State<MatchStatsScreen> {
   }
 
   String get _resultBanner {
-    if (widget.matchData != null && widget.matchData!['result'] != null) {
-      return widget.matchData!['result'].toString();
+    final data = _effectiveData;
+    if (data != null && data['result'] != null) {
+      return data['result'].toString();
     }
     switch (_currentSport) {
       case 'Cricket':
@@ -1242,10 +1275,13 @@ class _MatchStatsScreenState extends State<MatchStatsScreen> {
   // ==========================================
 
   Map<String, dynamic> _getBestPlayerDetails() {
-    if (widget.matchData != null && widget.matchData!['mvp'] != null) {
-      final mvpStr = widget.matchData!['mvp'].toString();
+    final data = _effectiveData;
+    if (data != null && (data['mvp'] != null || data['mvp_player_name'] != null)) {
+      final mvpStr = (data['mvp'] ?? data['mvp_player_name']).toString();
       final name = mvpStr.contains('(') ? mvpStr.split('(')[0].trim() : mvpStr;
-      final extra = mvpStr.contains('(') ? mvpStr.split('(')[1].replaceAll(')', '').trim() : 'Key match winner';
+      final extra = mvpStr.contains('(')
+          ? mvpStr.split('(')[1].replaceAll(')', '').trim()
+          : (data['mvp_notes']?.toString() ?? 'Key match winner');
 
       return {
         'awardTitle': '👑 Best Player of the Match',

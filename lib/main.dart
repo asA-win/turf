@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:turf_app/core/services/notification_service.dart';
+import 'package:turf_app/core/services/session_manager.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/firebase_options.dart';
 import 'package:turf_app/router.dart';
@@ -12,6 +13,9 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Load existing persistent session into memory for instant authenticated requests
+  await SessionManager.loadSession();
   
   runApp(
     const ProviderScope(

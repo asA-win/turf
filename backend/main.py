@@ -88,15 +88,107 @@ async def run_auto_migrations():
 
                 match_cols_res = await conn.execute(text("PRAGMA table_info(matches)"))
                 match_cols = {row[1] for row in match_cols_res.fetchall()}
-                if "sport_type" not in match_cols:
-                    try: await conn.execute(text("ALTER TABLE matches ADD COLUMN sport_type VARCHAR DEFAULT 'Football'"))
-                    except Exception: pass
-                if "start_time" not in match_cols:
-                    try: await conn.execute(text("ALTER TABLE matches ADD COLUMN start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
-                    except Exception: pass
-                if "status" not in match_cols:
-                    try: await conn.execute(text("ALTER TABLE matches ADD COLUMN status VARCHAR DEFAULT 'live'"))
-                    except Exception: pass
+                match_additions = [
+                    ("creator_id", "INTEGER REFERENCES users(id)"),
+                    ("turf_id", "INTEGER REFERENCES turfs(id)"),
+                    ("title", "VARCHAR"),
+                    ("sport_type", "VARCHAR DEFAULT 'Football'"),
+                    ("format", "VARCHAR DEFAULT '5v5'"),
+                    ("venue_name", "VARCHAR DEFAULT 'Play Arena'"),
+                    ("location", "VARCHAR DEFAULT 'Koramangala, Bengaluru'"),
+                    ("match_date", "VARCHAR"),
+                    ("match_time", "VARCHAR"),
+                    ("duration_minutes", "INTEGER DEFAULT 60"),
+                    ("team_a_name", "VARCHAR DEFAULT 'Team Alpha'"),
+                    ("team_b_name", "VARCHAR DEFAULT 'Team Beta'"),
+                    ("team_a_score", "INTEGER DEFAULT 0"),
+                    ("team_b_score", "INTEGER DEFAULT 0"),
+                    ("team_a_color", "VARCHAR DEFAULT 'Neon Green'"),
+                    ("team_b_color", "VARCHAR DEFAULT 'Royal Blue'"),
+                    ("status", "VARCHAR DEFAULT 'scheduled'"),
+                    ("max_players", "INTEGER DEFAULT 10"),
+                    ("current_players_count", "INTEGER DEFAULT 1"),
+                    ("price_per_player", "FLOAT DEFAULT 0.0"),
+                    ("skill_level", "VARCHAR DEFAULT 'Intermediate'"),
+                    ("scoreboard_state_json", "TEXT"),
+                    ("timeline_events_json", "TEXT"),
+                    ("mvp_player_name", "VARCHAR"),
+                    ("mvp_notes", "VARCHAR"),
+                    ("start_time", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                    ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                    ("updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                ]
+                for col_name, col_type in match_additions:
+                    if col_name not in match_cols:
+                        try:
+                            await conn.execute(text(f"ALTER TABLE matches ADD COLUMN {col_name} {col_type}"))
+                            logger.info(f"SQLite auto-migration: Added matches.{col_name}")
+                        except Exception as e:
+                            logger.debug(f"SQLite match col add note ({col_name}): {e}")
+
+                try:
+                    await conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS match_participants (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+                            user_id INTEGER NOT NULL REFERENCES users(id),
+                            team VARCHAR DEFAULT 'A',
+                            player_name VARCHAR NOT NULL,
+                            player_role VARCHAR,
+                            jersey_number VARCHAR,
+                            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                except Exception as e:
+                    logger.debug(f"SQLite match_participants table note: {e}")
+                # Tournament table auto-migration
+                try:
+                    tourn_cols_res = await conn.execute(text("PRAGMA table_info(tournaments)"))
+                    tourn_cols = {row[1] for row in tourn_cols_res.fetchall()}
+                    tourn_additions = [
+                        ("description", "TEXT"),
+                        ("sport", "VARCHAR DEFAULT 'Football'"),
+                        ("level", "VARCHAR DEFAULT 'Open Category'"),
+                        ("venue", "VARCHAR DEFAULT 'Play Arena'"),
+                        ("area", "VARCHAR DEFAULT 'Koramangala'"),
+                        ("city", "VARCHAR DEFAULT 'Bangalore'"),
+                        ("banner_image", "VARCHAR"),
+                        ("entry_fee", "FLOAT DEFAULT 0.0"),
+                        ("registered_teams_count", "INTEGER DEFAULT 0"),
+                        ("end_date", "TIMESTAMP"),
+                        ("registration_deadline", "TIMESTAMP"),
+                        ("rules", "TEXT"),
+                        ("creator_id", "INTEGER REFERENCES users(id)"),
+                        ("contact_phone", "VARCHAR"),
+                        ("organizer_name", "VARCHAR"),
+                        ("fixtures_generated", "BOOLEAN DEFAULT 0"),
+                        ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                        ("updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                    ]
+                    for col_name, col_type in tourn_additions:
+                        if col_name not in tourn_cols:
+                            try:
+                                await conn.execute(text(f"ALTER TABLE tournaments ADD COLUMN {col_name} {col_type}"))
+                                logger.info(f"SQLite auto-migration: Added tournaments.{col_name}")
+                            except Exception as e:
+                                logger.debug(f"SQLite tourn col add note ({col_name}): {e}")
+                except Exception as e:
+                    logger.debug(f"SQLite tournaments pragma note: {e}")
+
+                try:
+                    await conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS direct_messages (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            room_id VARCHAR NOT NULL,
+                            sender_id INTEGER REFERENCES users(id),
+                            recipient_id INTEGER REFERENCES users(id),
+                            sender_name VARCHAR,
+                            message TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                except Exception as e:
+                    logger.debug(f"SQLite direct_messages table note: {e}")
             except Exception as e:
                 logger.debug(f"SQLite auxiliary pragma note: {e}")
         else:
@@ -120,9 +212,71 @@ async def run_auto_migrations():
                 "ALTER TABLE turfs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
                 "ALTER TABLE slots ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP",
                 "ALTER TABLE slots ADD COLUMN IF NOT EXISTS locked_by INTEGER REFERENCES users(id)",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS creator_id INTEGER REFERENCES users(id)",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS turf_id INTEGER REFERENCES turfs(id)",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS title VARCHAR",
                 "ALTER TABLE matches ADD COLUMN IF NOT EXISTS sport_type VARCHAR DEFAULT 'Football'",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS format VARCHAR DEFAULT '5v5'",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS venue_name VARCHAR DEFAULT 'Play Arena'",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS location VARCHAR DEFAULT 'Koramangala, Bengaluru'",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS match_date VARCHAR",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS match_time VARCHAR",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 60",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS team_a_name VARCHAR DEFAULT 'Team Alpha'",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS team_b_name VARCHAR DEFAULT 'Team Beta'",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS team_a_score INTEGER DEFAULT 0",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS team_b_score INTEGER DEFAULT 0",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS team_a_color VARCHAR DEFAULT 'Neon Green'",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS team_b_color VARCHAR DEFAULT 'Royal Blue'",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'scheduled'",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS max_players INTEGER DEFAULT 10",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS current_players_count INTEGER DEFAULT 1",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS price_per_player FLOAT DEFAULT 0.0",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS skill_level VARCHAR DEFAULT 'Intermediate'",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS scoreboard_state_json TEXT",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS timeline_events_json TEXT",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS mvp_player_name VARCHAR",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS mvp_notes VARCHAR",
                 "ALTER TABLE matches ADD COLUMN IF NOT EXISTS start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'live'",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                "ALTER TABLE matches ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                """CREATE TABLE IF NOT EXISTS match_participants (
+                    id SERIAL PRIMARY KEY,
+                    match_id INTEGER NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id),
+                    team VARCHAR DEFAULT 'A',
+                    player_name VARCHAR NOT NULL,
+                    player_role VARCHAR,
+                    jersey_number VARCHAR,
+                    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS description TEXT",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS sport VARCHAR DEFAULT 'Football'",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS level VARCHAR DEFAULT 'Open Category'",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS venue VARCHAR DEFAULT 'Play Arena'",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS area VARCHAR DEFAULT 'Koramangala'",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS city VARCHAR DEFAULT 'Bangalore'",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS banner_image VARCHAR",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS entry_fee FLOAT DEFAULT 0.0",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS registered_teams_count INTEGER DEFAULT 0",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS end_date TIMESTAMP",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS registration_deadline TIMESTAMP",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS rules TEXT",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS creator_id INTEGER REFERENCES users(id)",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS contact_phone VARCHAR",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS organizer_name VARCHAR",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS fixtures_generated BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                "ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+                """CREATE TABLE IF NOT EXISTS direct_messages (
+                    id SERIAL PRIMARY KEY,
+                    room_id VARCHAR NOT NULL,
+                    sender_id INTEGER REFERENCES users(id),
+                    recipient_id INTEGER REFERENCES users(id),
+                    sender_name VARCHAR,
+                    message TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )""",
             ]
             for stmt in migration_statements:
                 try:

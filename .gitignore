@@ -64,6 +64,13 @@ dist/
 *.sqlite3
 *.apk
 *.aab
+scratch/
+backend/test_*.py
+test/chat_*.dart
+test/tournament_features_test.dart
+test/user_app_features_test.dart
+
+
 
 
 

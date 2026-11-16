@@ -5,12 +5,20 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/core/providers/api_client.dart';
+import 'package:turf_app/core/services/session_manager.dart';
 import 'package:turf_app/core/widgets/country_code_picker.dart';
 import 'package:turf_app/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:turf_app/features/auth/presentation/controllers/auth_providers.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
-  const SignupScreen({super.key});
+  final String? initialEmail;
+  final String? initialPassword;
+
+  const SignupScreen({
+    super.key,
+    this.initialEmail,
+    this.initialPassword,
+  });
 
   @override
   ConsumerState<SignupScreen> createState() => _SignupScreenState();
@@ -37,6 +45,25 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   Color _passwordStrengthColor = Colors.grey;
   double _passwordStrengthPercent = 0.0;
   bool _passwordsMatch = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialEmail != null && widget.initialEmail!.isNotEmpty) {
+      _emailController.text = widget.initialEmail!;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _onEmailChanged(widget.initialEmail!);
+      });
+    }
+    if (widget.initialPassword != null && widget.initialPassword!.isNotEmpty) {
+      _passwordController.text = widget.initialPassword!;
+      _confirmPasswordController.text = widget.initialPassword!;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _onPasswordChanged(widget.initialPassword!);
+        _onConfirmPasswordChanged(widget.initialPassword!);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -174,26 +201,34 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               ),
             );
           } else {
+            final isAlreadyRegistered = errStr.toLowerCase().contains('already registered');
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(errStr)),
+              SnackBar(
+                content: Text(
+                  errStr.contains('Invalid email or password')
+                      ? 'An account with this email may already exist. Please log in.'
+                      : errStr,
+                ),
+                backgroundColor: AppTheme.errorRed,
+                action: isAlreadyRegistered
+                    ? SnackBarAction(
+                        label: 'Login',
+                        textColor: Colors.white,
+                        onPressed: () => context.pop(),
+                      )
+                    : null,
+              ),
             );
           }
         },
         data: (_) async {
-          // Immediately sync with backend database in real time
-          try {
-            final dio = ref.read(dioClientProvider);
-            final user = ref.read(authStateChangesProvider).valueOrNull;
-            if (user != null) {
-              await dio.post('/users/', data: {
-                'firebase_uid': user.uid,
-                'email': _emailController.text.trim(),
-                'full_name': _usernameController.text.trim(),
-                'phone': '${_selectedCountry.dialCode} ${_contactController.text.trim()}',
-              });
-            }
-          } catch (_) {}
           if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('✅ Account created successfully! Welcome to Turf!'),
+                backgroundColor: AppTheme.primaryGreen,
+              ),
+            );
             context.go('/home');
           }
         },
@@ -242,19 +277,35 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           }
         },
         data: (_) async {
-          // Immediately sync with backend database in real time
+          // Sync Google user with backend and acquire native JWT token
           try {
             final dio = ref.read(dioClientProvider);
             final user = ref.read(authStateChangesProvider).valueOrNull;
             if (user != null) {
               await dio.post('/users/', data: {
                 'firebase_uid': user.uid,
-                'email': _emailController.text.trim(),
-                'full_name': _usernameController.text.trim(),
-                'phone': '${_selectedCountry.dialCode} ${_contactController.text.trim()}',
+                'email': user.email ?? _emailController.text.trim(),
+                'full_name': user.displayName ?? _usernameController.text.trim(),
+                'phone': user.phoneNumber ?? '${_selectedCountry.dialCode} ${_contactController.text.trim()}',
+                'password': 'password123',
               });
+
+              final res = await dio.post('/auth/login', data: {
+                'email': (user.email ?? _emailController.text.trim()).toLowerCase(),
+                'password': 'password123',
+              });
+              final newToken = res.data['access_token']?.toString();
+              if (newToken != null) {
+                await SessionManager.saveSession(
+                  token: newToken,
+                  email: user.email ?? _emailController.text.trim(),
+                  password: 'password123',
+                );
+              }
             }
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('[GOOGLE SYNC NOTE] $e');
+          }
           if (mounted) {
             context.go('/home');
           }

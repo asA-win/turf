@@ -17,7 +17,9 @@ from app.db.session import Base, get_db
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-@pytest.fixture(scope="session")
+# In pytest-asyncio >= 0.23, event_loop fixture is managed by pytest-asyncio
+
+@pytest.fixture
 async def test_engine():
     engine = create_async_engine(
         TEST_DATABASE_URL,

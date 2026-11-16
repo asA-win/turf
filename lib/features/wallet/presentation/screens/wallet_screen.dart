@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/wallet/presentation/controllers/wallet_provider.dart';
@@ -22,12 +21,14 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(walletProvider.notifier).loadWallet();
       try {
         _walletSub = ref.read(realtimeServiceProvider).connectToChannel('booking_updates').listen((event) {
           if (mounted && event['type'] == 'wallet_updated') {
             final balance = (event['balance'] as num?)?.toDouble();
+            final coins = (event['coins'] as num?)?.toInt();
             if (balance != null) {
-              // Updated live
+              ref.read(walletProvider.notifier).updateFromRealtime(balance, coins);
             }
           }
         });
@@ -88,9 +89,6 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                 child: ElevatedButton(
                   onPressed: () {
                     ref.read(walletProvider.notifier).topUp(selectedAmount.toDouble());
-                    try {
-                      ref.read(dioClientProvider).post('/users/wallet/add-money?amount=$selectedAmount');
-                    } catch (_) {}
                     try {
                       ref.read(realtimeServiceProvider).emitToChannel('booking_updates', {
                         'type': 'wallet_updated',

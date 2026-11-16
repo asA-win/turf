@@ -8,7 +8,8 @@ import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/turf_details/data/repositories/review_repository.dart';
 
 class ReviewRatingScreen extends ConsumerStatefulWidget {
-  const ReviewRatingScreen({super.key});
+  final Map<String, dynamic>? data;
+  const ReviewRatingScreen({super.key, this.data});
 
   @override
   ConsumerState<ReviewRatingScreen> createState() => _ReviewRatingScreenState();
@@ -19,7 +20,22 @@ class _ReviewRatingScreenState extends ConsumerState<ReviewRatingScreen> {
   final TextEditingController _reviewController = TextEditingController(text: 'Great turf! Well maintained and awesome experience. Will book again.');
 
   @override
+  void dispose() {
+    _reviewController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final turfId = (widget.data?['turfId'] as int?) ??
+        (widget.data?['turf_id'] as int?) ??
+        int.tryParse(widget.data?['turfId']?.toString() ?? '') ??
+        int.tryParse(widget.data?['turf_id']?.toString() ?? '') ??
+        1;
+    final turfName = widget.data?['turfName'] as String? ??
+        widget.data?['turf_name'] as String? ??
+        'the venue';
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
@@ -38,13 +54,13 @@ class _ReviewRatingScreenState extends ConsumerState<ReviewRatingScreen> {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppTheme.primaryGreen.withValues(alpha: 0.15),
+                  color: AppTheme.primaryGreen.withOpacity(0.15),
                 ),
                 child: const Icon(Icons.thumb_up_alt_outlined, size: 64, color: AppTheme.primaryGreen),
               ),
               const SizedBox(height: 20),
               Text(
-                'How was your experience at\nGreen Field Arena?',
+                'How was your experience at\n$turfName?',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
               ),
@@ -82,26 +98,28 @@ class _ReviewRatingScreenState extends ConsumerState<ReviewRatingScreen> {
                   try {
                     final dio = ref.read(dioClientProvider);
                     await dio.post('/reviews/', data: {
-                      'turf_id': 1,
+                      'turf_id': turfId,
                       'rating': _rating,
                       'comment': _reviewController.text.trim(),
                     });
-                  } catch (_) {}
+                  } catch (e) {
+                    debugPrint('[SUBMIT REVIEW ERROR] $e');
+                  }
 
                   try {
-                    ref.read(realtimeServiceProvider).emit('reviews/1', {
+                    ref.read(realtimeServiceProvider).emit('reviews/$turfId', {
                       'type': 'new_review',
-                      'turf_id': 1,
+                      'turf_id': turfId,
                       'rating': _rating,
                       'comment': _reviewController.text.trim(),
                     });
                     ref.read(realtimeServiceProvider).emit('booking_updates', {
                       'type': 'new_review',
-                      'turf_id': 1,
+                      'turf_id': turfId,
                     });
                   } catch (_) {}
 
-                  ref.invalidate(fetchTurfReviewsProvider(1));
+                  ref.invalidate(fetchTurfReviewsProvider(turfId));
 
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(

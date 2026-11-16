@@ -1,11 +1,12 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/services/realtime_service.dart';
+import 'package:turf_app/core/services/session_manager.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 import 'package:turf_app/features/booking/data/repositories/booking_repository.dart';
-import 'package:turf_app/features/booking/domain/models/booking.dart';
 import 'package:turf_app/features/turf_details/domain/models/slot.dart';
 import 'package:turf_app/features/turf_details/domain/models/turf.dart';
 
@@ -23,9 +24,65 @@ class _PaymentOptionsScreenState extends ConsumerState<PaymentOptionsScreen> {
   bool isProcessing = false;
 
   Future<void> _processMockPayment(BuildContext context) async {
+    final isTournament = widget.data?['isTournamentBooking'] == true || widget.data?['tournament'] != null;
+    final router = GoRouter.of(context);
+
+    if (isTournament) {
+      setState(() => isProcessing = true);
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
+      setState(() => isProcessing = false);
+
+      final tournament = widget.data?['tournament'] as Map<String, dynamic>? ?? {};
+      final dynamic rawId = tournament['backendId'] ?? tournament['id'] ?? tournament['dbId'];
+      final tournId = rawId?.toString() ?? '1';
+      final tournName = tournament['name'] ?? tournament['title'] ?? 'Tournament Championship';
+      final teamName = widget.data?['teamName'] ?? 'My Squad FC';
+
+      if (!context.mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF0F1B13),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: AppTheme.primaryGreen, size: 28),
+              const SizedBox(width: 10),
+              Text('Payment Confirmed', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          content: Text(
+            'Your entry fee has been paid successfully! Team "$teamName" is officially registered for $tournName.',
+            style: GoogleFonts.poppins(color: const Color(0xFFC0D2C6), fontSize: 13),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryGreen,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.pop(ctx);
+                router.go('/tournament-hub', extra: {
+                  ...tournament,
+                  'id': tournId,
+                  'initialTab': 0,
+                  'justRegistered': true,
+                });
+              },
+              child: const Text('View in Tournament Hub', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final turf = widget.data?['turf'] as Turf?;
     final slot = widget.data?['slot'] as Slot?;
-    final router = GoRouter.of(context);
 
     final effectiveTurf = turf ?? Turf(
       id: 1,
@@ -47,8 +104,11 @@ class _PaymentOptionsScreenState extends ConsumerState<PaymentOptionsScreen> {
 
     setState(() => isProcessing = true);
 
+    // Ensure native backend token is loaded/refreshed
+    await SessionManager.ensureBackendToken();
+
     // Simulate Payment Gateway Sandbox handshake delay
-    await Future.delayed(const Duration(milliseconds: 1200));
+    await Future.delayed(const Duration(milliseconds: 1000));
 
     try {
       // Call backend API to persist the booking in SQLite/Postgres DB
@@ -85,44 +145,51 @@ class _PaymentOptionsScreenState extends ConsumerState<PaymentOptionsScreen> {
         'paymentMethod': selectedMethod,
       });
     } catch (e) {
-      // Fallback for offline or sandbox mode: generate confirmed booking
-      final fallbackBooking = Booking(
-        id: (DateTime.now().millisecondsSinceEpoch % 900000) + 100000,
-        userId: 1,
-        turfId: effectiveTurf.id,
-        slotId: effectiveSlot.id,
-        bookingDate: effectiveSlot.startTime,
-        totalPrice: (widget.data?['totalPrice'] as double?) ?? 1200.0,
-        status: 'confirmed',
-        turf: effectiveTurf,
-      );
-
-      try {
-        ref.read(realtimeServiceProvider).emit('booking_updates', {
-          'type': 'booking_created',
-          'booking_id': fallbackBooking.id,
-          'turf_id': effectiveTurf.id,
-          'slot_id': effectiveSlot.id,
-          'status': 'confirmed',
-          'total_price': fallbackBooking.totalPrice,
-        });
-        ref.read(realtimeServiceProvider).emit('slots/${effectiveTurf.id}', {
-          'type': 'slot_booked',
-          'slot_id': effectiveSlot.id,
-          'turf_id': effectiveTurf.id,
-          'is_booked': true,
-        });
-      } catch (_) {}
-
       if (!mounted) return;
       setState(() => isProcessing = false);
 
-      router.push('/booking-success', extra: {
-        'booking': fallbackBooking,
-        'turf': effectiveTurf,
-        'slot': effectiveSlot,
-        'paymentMethod': selectedMethod,
-      });
+      String errorMsg = 'Failed to confirm booking. Please try again.';
+      if (e is DioException) {
+        final data = e.response?.data;
+        if (data is Map && data['detail'] != null) {
+          errorMsg = data['detail'].toString();
+        } else if (e.response?.statusCode == 409) {
+          errorMsg = 'This slot has already been booked or is locked by another player.';
+        } else if (e.response?.statusCode == 401) {
+          errorMsg = 'Session expired. Please log in again to book.';
+        }
+      }
+
+      if (!context.mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppTheme.cardDark,
+          title: Row(
+            children: [
+              const Icon(Icons.error_outline, color: Colors.redAccent),
+              const SizedBox(width: 8),
+              Text(
+                'Booking Failed',
+                style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Text(
+            errorMsg,
+            style: GoogleFonts.poppins(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(
+                'OK',
+                style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      );
     }
   }
 

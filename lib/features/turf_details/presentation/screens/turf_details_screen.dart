@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/services/realtime_service.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/turf_details/data/repositories/favorite_repository.dart';
 import 'package:turf_app/features/turf_details/data/repositories/turf_repository.dart';
 import 'package:turf_app/features/turf_details/domain/models/turf.dart';
 
@@ -18,6 +19,7 @@ class TurfDetailsScreen extends ConsumerStatefulWidget {
 
 class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
   bool _isFavorite = false;
+  bool _hasUserToggledFavorite = false;
   bool _isDescriptionExpanded = false;
   String _selectedPeakHour = '6 PM - 10 PM';
   StreamSubscription<Map<String, dynamic>>? _turfSub;
@@ -189,8 +191,21 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
                 Row(
                   children: [
                     GestureDetector(
-                      onTap: () {
-                        setState(() => _isFavorite = !_isFavorite);
+                      onTap: () async {
+                        final turfIdInt = int.tryParse(widget.turfId) ?? 1;
+                        final currentFav = _hasUserToggledFavorite
+                            ? _isFavorite
+                            : (ref.read(fetchMyFavoritesProvider).valueOrNull?.any((f) => f.turf.id == turfIdInt) ?? false);
+                        setState(() {
+                          _hasUserToggledFavorite = true;
+                          _isFavorite = !currentFav;
+                        });
+                        try {
+                          await ref.read(favoriteRepositoryProvider).toggleFavorite(turfIdInt);
+                          ref.invalidate(fetchMyFavoritesProvider);
+                        } catch (e) {
+                          debugPrint('[FAVORITE TOGGLE ERROR] $e');
+                        }
                       },
                       child: Container(
                         width: 40,
@@ -199,10 +214,19 @@ class _TurfDetailsScreenState extends ConsumerState<TurfDetailsScreen> {
                           color: Colors.black.withValues(alpha: 0.5),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
-                          _isFavorite ? Icons.favorite : Icons.favorite_border,
-                          color: _isFavorite ? Colors.red : Colors.white,
-                          size: 20,
+                        child: Consumer(
+                          builder: (context, ref, _) {
+                            final favoritesAsync = ref.watch(fetchMyFavoritesProvider);
+                            final turfIdInt = int.tryParse(widget.turfId) ?? 1;
+                            final isFav = _hasUserToggledFavorite
+                                ? _isFavorite
+                                : (favoritesAsync.valueOrNull?.any((f) => f.turf.id == turfIdInt) ?? false);
+                            return Icon(
+                              isFav ? Icons.favorite : Icons.favorite_border,
+                              color: isFav ? Colors.red : Colors.white,
+                              size: 20,
+                            );
+                          },
                         ),
                       ),
                     ),

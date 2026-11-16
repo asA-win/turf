@@ -156,7 +156,19 @@ GoRouter router(Ref ref) {
       GoRoute(path: '/onboarding3', builder: (context, state) => const Onboarding3Screen()),
       GoRoute(path: '/welcome', builder: (context, state) => const WelcomeScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-      GoRoute(path: '/signup', builder: (context, state) => const SignupScreen()),
+      GoRoute(
+        path: '/signup',
+        builder: (context, state) {
+          if (state.extra is Map<String, dynamic>) {
+            final data = state.extra as Map<String, dynamic>;
+            return SignupScreen(
+              initialEmail: data['email']?.toString(),
+              initialPassword: data['password']?.toString(),
+            );
+          }
+          return const SignupScreen();
+        },
+      ),
       GoRoute(
         path: '/otp-verification',
         builder: (context, state) {
@@ -228,7 +240,7 @@ GoRouter router(Ref ref) {
       GoRoute(path: '/rebook/:id', builder: (context, state) => RebookScreen(bookingId: state.pathParameters['id']!)),
       GoRoute(path: '/add-to-calendar', builder: (context, state) => const AddToCalendarScreen()),
       GoRoute(path: '/checkin-qr', builder: (context, state) => const CheckInQrScreen()),
-      GoRoute(path: '/review-rating', builder: (context, state) => const ReviewRatingScreen()),
+      GoRoute(path: '/review-rating', builder: (context, state) => ReviewRatingScreen(data: state.extra as Map<String, dynamic>?)),
       GoRoute(path: '/share-booking', builder: (context, state) => const ShareBookingScreen()),
 
       // 5. Matches & Live Scoreboard
@@ -289,7 +301,7 @@ GoRouter router(Ref ref) {
         },
       ),
       GoRoute(path: '/match-timeline/:id', builder: (context, state) => MatchTimelineScreen(matchId: state.pathParameters['id']!)),
-      GoRoute(path: '/mvp-screen', builder: (context, state) => const MvpScreen()),
+      GoRoute(path: '/mvp-screen', builder: (context, state) => MvpScreen(extra: state.extra as Map<String, dynamic>?)),
       GoRoute(path: '/match-summary/:id', builder: (context, state) => MatchSummaryScreen(matchId: state.pathParameters['id']!)),
       GoRoute(path: '/player-performance/:id', builder: (context, state) => PlayerPerformanceScreen(matchId: state.pathParameters['id']!)),
       GoRoute(path: '/share-match/:id', builder: (context, state) => ShareMatchScreen(matchId: state.pathParameters['id']!)),
@@ -318,6 +330,7 @@ GoRouter router(Ref ref) {
         path: '/tournament-details/:id',
         builder: (context, state) => TournamentHubScreen(
           tournamentData: state.extra as Map<String, dynamic>?,
+          tournamentId: state.pathParameters['id'],
         ),
       ),
       GoRoute(
@@ -356,10 +369,15 @@ GoRouter router(Ref ref) {
         path: '/friend-chat',
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
+          final friendId = (extra?['friendId'] is num)
+              ? (extra?['friendId'] as num).toInt()
+              : ((extra?['id'] is num) ? (extra?['id'] as num).toInt() : int.tryParse(extra?['id']?.toString() ?? ''));
           return FriendChatScreen(
-            friendName: extra?['name'] as String? ?? 'Player',
-            friendAvatar: extra?['avatar'] as String?,
-            friendStatus: extra?['status'] as String? ?? 'Online',
+            friendName: extra?['name'] as String? ?? extra?['friendName'] as String? ?? 'Player',
+            friendAvatar: extra?['avatar'] as String? ?? extra?['friendAvatar'] as String?,
+            friendStatus: extra?['status'] as String? ?? extra?['friendStatus'] as String? ?? 'Online',
+            friendId: friendId,
+            friendUsername: extra?['username'] as String? ?? extra?['friendUsername'] as String?,
           );
         },
       ),

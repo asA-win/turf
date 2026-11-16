@@ -4,16 +4,25 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
 
 class MvpScreen extends StatelessWidget {
-  const MvpScreen({super.key});
+  final Map<String, dynamic>? extra;
+  const MvpScreen({super.key, this.extra});
 
   @override
   Widget build(BuildContext context) {
+    final mvpName = extra?['mvp_player_name'] ?? extra?['mvp'] ?? 'Player of the Match';
+    final teamName = extra?['team'] ?? extra?['teamA'] ?? 'Winning Team';
+    final notes = extra?['mvp_notes'] ?? extra?['notes'] ?? 'Outstanding Performance';
+    final matchId = extra?['matchId']?.toString();
+    final goals = extra?['goals']?.toString() ?? '1';
+    final assists = extra?['assists']?.toString() ?? '1';
+    final sport = extra?['sport'] ?? 'Football';
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundBlack,
       appBar: AppBar(
-        title: const Text('MVP Screen'),
+        title: const Text('MVP / Man of the Match'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           onPressed: () => context.pop(),
         ),
       ),
@@ -33,55 +42,73 @@ class MvpScreen extends StatelessWidget {
               ),
               const SizedBox(height: 32),
               Container(
-                width: 140,
-                height: 140,
+                width: 130,
+                height: 130,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppTheme.surfaceDark,
                   border: Border.all(color: AppTheme.primaryGreen, width: 4),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primaryGreen.withOpacity(0.5),
-                      blurRadius: 30,
-                      spreadRadius: 5,
+                      color: AppTheme.primaryGreen.withValues(alpha: 0.4),
+                      blurRadius: 28,
+                      spreadRadius: 4,
                     ),
                   ],
                 ),
-                child: const Icon(Icons.person, size: 80, color: Colors.white),
+                child: const Icon(Icons.star_rounded, size: 70, color: AppTheme.primaryGreen),
               ),
-              const SizedBox(height: 16),
-              Text('Rahul Sharma', style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-              Text('Turf Titans', style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 20),
+              Text(
+                mvpName,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                teamName,
+                style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                notes,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 13),
+              ),
               const SizedBox(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: const [
-                  _MvpStat(label: 'Goals', val: '1'),
-                  _MvpStat(label: 'Assists', val: '1'),
-                  _MvpStat(label: 'Accuracy', val: '92%'),
-                  _MvpStat(label: 'Rating', val: '8.7'),
+                children: [
+                  _MvpStat(label: 'Sport', val: sport),
+                  _MvpStat(label: 'Impact', val: 'Key Player'),
+                  _MvpStat(label: 'Status', val: 'Awarded'),
                 ],
               ),
               const Spacer(),
               ElevatedButton(
-                onPressed: () => context.push('/stats', extra: <String, dynamic>{
-                  'sport': 'Football',
-                  'teamA': 'Turf Titans',
-                  'teamB': 'Kickers United',
-                  'mvp': 'Rahul Sharma (Goals: 1, Assists: 1)',
-                  'result': '🏆 Turf Titans Won',
-                }),
-                child: const Text('View Full Stats'),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: () => context.push('/share-match/1'),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppTheme.primaryGreen),
+                onPressed: () {
+                  if (matchId != null) {
+                    context.push('/match-stats/$matchId', extra: extra);
+                  } else {
+                    context.push('/stats', extra: extra);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryGreen,
                   minimumSize: const Size(double.infinity, 50),
                 ),
-                child: Text('Share Result', style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold)),
+                child: const Text('View Full Match Stats', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
               ),
+              const SizedBox(height: 12),
+              if (matchId != null)
+                OutlinedButton(
+                  onPressed: () => context.push('/share-match/$matchId'),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppTheme.primaryGreen),
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                  child: Text('Share Result', style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold)),
+                ),
             ],
           ),
         ),
@@ -99,7 +126,8 @@ class _MvpStat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(val, style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+        Text(val, style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+        const SizedBox(height: 2),
         Text(label, style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 11)),
       ],
     );

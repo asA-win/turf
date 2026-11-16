@@ -15,10 +15,20 @@ async def _handle_ws_loop(websocket: WebSocket, channel: str):
                     await websocket.send_text(json.dumps({"type": "pong"}))
                     continue
                 await ws_manager.broadcast(channel, data)
+                if channel.startswith("chat_"):
+                    await ws_manager.broadcast(channel[5:], data)
+                    await ws_manager.broadcast("chat_inbox", data)
+                elif "_" in channel or "dm" in channel:
+                    await ws_manager.broadcast(f"chat_{channel}", data)
+                    await ws_manager.broadcast("chat_inbox", data)
             except Exception:
                 pass
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket, channel)
+
+@router.websocket("/chat_inbox")
+async def websocket_chat_inbox(websocket: WebSocket):
+    await _handle_ws_loop(websocket, "chat_inbox")
 
 @router.websocket("/scoreboard")
 async def websocket_scoreboard(websocket: WebSocket):
@@ -30,7 +40,9 @@ async def websocket_slots(websocket: WebSocket, turf_id: int):
 
 @router.websocket("/chat/{room_id}")
 async def websocket_chat(websocket: WebSocket, room_id: str):
-    await _handle_ws_loop(websocket, f"chat_{room_id}")
+    from app.api.api_v1.endpoints.community import canonicalize_room_id
+    canon_room, _ = canonicalize_room_id(room_id)
+    await _handle_ws_loop(websocket, f"chat_{canon_room}")
 
 @router.websocket("/user/{user_id}")
 async def websocket_user(websocket: WebSocket, user_id: str):

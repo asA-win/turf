@@ -1,9 +1,11 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:turf_app/core/providers/api_client.dart';
 import 'package:turf_app/core/theme/app_theme.dart';
+import 'package:turf_app/features/auth/presentation/controllers/user_provider.dart';
 import 'package:turf_app/features/tournament/data/tournament_repository.dart';
 
 class TournamentRulesScreen extends ConsumerStatefulWidget {
@@ -36,48 +38,78 @@ class _TournamentRulesScreenState extends ConsumerState<TournamentRulesScreen> {
     setState(() => _isRegistering = true);
 
     final t = widget.data?['tournament'] as Map<String, dynamic>? ?? {};
-    final tournId = t['id'] as String? ?? 'tourn_1';
-    final tournName = t['name'] as String? ?? 'Tournament Championship';
+    final dynamic rawId = t['backendId'] ?? t['id'] ?? t['dbId'];
+    final String tournId = rawId?.toString() ?? '1';
+    final tournName = t['name'] as String? ?? t['title'] as String? ?? 'Tournament Championship';
     final venue = t['venue'] as String? ?? 'Play Arena, Bangalore';
-    final feeAmount = (t['entryFeeAmount'] as num?)?.toInt() ?? 0;
+    final feeAmount = (t['entryFeeAmount'] as num?)?.toInt() ?? (t['entry_fee'] as num?)?.toInt() ?? 0;
     final teamName = widget.data?['teamName'] as String? ?? 'My Squad FC';
     final captain = widget.data?['captainName'] as String? ?? 'Captain';
     final players = widget.data?['players'] as List? ?? [];
 
     // Register team in TournamentRepository and backend
-    await TournamentRepository.instance.registerTeamForTournament(tournId, {
-      'teamName': teamName,
-      'captainName': captain,
-      'contactPhone': widget.data?['contactPhone'] ?? '+91 98765 43210',
-      'teamTag': widget.data?['teamTag'] ?? 'MYT',
-      'jerseyColor': widget.data?['jerseyColor'] ?? 'Neon Green',
-      'skillLevel': widget.data?['skillLevel'] ?? 'Intermediate / Club',
-      'registeredAt': 'Just now',
-      'playersCount': players.length,
-      'players': players,
-      'isUserTeam': true,
-      'rating': 4.8,
-    }, dio: ref.read(dioClientProvider));
+    final userProfile = ref.read(fetchUserProfileProvider).valueOrNull;
+    final dio = ref.read(dioClientProvider);
 
-    await Future.delayed(const Duration(milliseconds: 600));
+    try {
+      await TournamentRepository.instance.registerTeamForTournamentBackend(
+        dio,
+        tournId,
+        {
+          'teamName': teamName,
+          'captainName': captain,
+          'contactPhone': widget.data?['contactPhone'] ?? userProfile?.phone ?? '+91 98765 43210',
+          'contactEmail': widget.data?['contactEmail'] ?? userProfile?.email,
+          'emergencyContact': widget.data?['emergencyContact'],
+          'teamTag': widget.data?['teamTag'] ?? 'MYT',
+          'jerseyColor': widget.data?['jerseyColor'] ?? 'Neon Green',
+          'skillLevel': widget.data?['skillLevel'] ?? 'Intermediate / Club',
+          'players': players,
+          'specialRequests': widget.data?['options']?['specialNotes'],
+        },
+        currentUserId: userProfile?.id,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isRegistering = false);
+      String errorMessage = 'Registration failed';
+      if (e is DioException) {
+        final responseData = e.response?.data;
+        if (responseData is Map && responseData['detail'] != null) {
+          errorMessage = responseData['detail'].toString();
+        } else if (responseData is String && responseData.isNotEmpty) {
+          errorMessage = responseData;
+        } else if (e.response?.statusCode == 400) {
+          errorMessage = 'Registration could not be completed. You may already be registered or this team name is already taken.';
+        } else {
+          errorMessage = e.message ?? e.toString();
+        }
+      } else {
+        errorMessage = e.toString();
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
 
     if (!mounted) return;
     setState(() => _isRegistering = false);
 
-    if (feeAmount > 0) {
-      // Paid entry fee: proceed to checkout / payment
-      context.push('/checkout', extra: {
-        'tournament': t,
-        'teamName': teamName,
-        'captainName': captain,
-        'playersCount': players.length,
-        'price': feeAmount.toDouble(),
-        'isTournamentBooking': true,
-      });
-    } else {
-      // Free tournament: show confirmed registration pass
-      _showRegistrationSuccessDialog(t, tournId, tournName, teamName, captain, venue, players.length);
-    }
+    // Show confirmed tournament registration pass directly for both free and paid tournaments
+    _showRegistrationSuccessDialog(
+      t,
+      tournId,
+      tournName,
+      teamName,
+      captain,
+      venue,
+      players.length,
+      feeAmount: feeAmount,
+    );
   }
 
   void _showRegistrationSuccessDialog(
@@ -87,8 +119,9 @@ class _TournamentRulesScreenState extends ConsumerState<TournamentRulesScreen> {
     String teamName,
     String captain,
     String venue,
-    int playersCount,
-  ) {
+    int playersCount, {
+    int feeAmount = 0,
+  }) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -144,7 +177,11 @@ class _TournamentRulesScreenState extends ConsumerState<TournamentRulesScreen> {
                     const SizedBox(height: 6),
                     _buildDialogRow('Venue', venue),
                     const SizedBox(height: 6),
-                    _buildDialogRow('Entry Fee', 'Free Entry (Confirmed)', isGreen: true),
+                    _buildDialogRow(
+                      'Entry Fee',
+                      feeAmount > 0 ? '₹$feeAmount (Confirmed & Paid)' : 'Free Entry (Confirmed)',
+                      isGreen: true,
+                    ),
                   ],
                 ),
               ),

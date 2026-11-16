@@ -18,7 +18,7 @@ from app.db.models import User, OTPCode, Wallet, Turf
 from app.schemas.schemas import (
     SendOTPRequest, VerifyOTPRequest, LoginRequest,
     ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest,
-    AuthTokenResponse, User as UserSchema, RegisterOwnerRequest
+    AuthTokenResponse, User as UserSchema, RegisterOwnerRequest, RegisterUserRequest
 )
 from app.core.security import (
     hash_password, verify_password, create_access_token, get_current_user
@@ -264,15 +264,25 @@ async def verify_otp(request: VerifyOTPRequest, db: AsyncSession = Depends(get_d
         clean_id = clean_identifier.replace("+", "").replace("@", "_").replace(".", "_")
         firebase_uid = f"usr_{clean_id}"
         email = clean_identifier if is_email else f"{clean_id}@turfapp.com"
-        full_name = f"Owner {clean_id[-4:]}" if len(clean_id) >= 4 else "Turf Partner"
+        
+        user_role = (request.role or "user").strip().lower()
+        if user_role not in ["user", "owner"]:
+            user_role = "user"
+
+        if user_role == "owner":
+            full_name = f"Owner {clean_id[-4:]}" if len(clean_id) >= 4 else "Turf Partner"
+            owner_status = "pending"
+        else:
+            full_name = f"User {clean_id[-4:]}" if len(clean_id) >= 4 else "Turf Player"
+            owner_status = "approved"
 
         user = User(
             firebase_uid=firebase_uid,
             email=email,
             phone=clean_identifier if not is_email else None,
             full_name=full_name,
-            role="owner",
-            owner_status="pending",
+            role=user_role,
+            owner_status=owner_status,
             is_verified=True
         )
         db.add(user)
@@ -283,7 +293,7 @@ async def verify_otp(request: VerifyOTPRequest, db: AsyncSession = Depends(get_d
         db.add(wallet)
     else:
         user.is_verified = True
-        if user.role != "admin":
+        if request.role == "owner" and user.role != "admin":
             user.role = "owner"
         db.add(user)
 
@@ -306,6 +316,70 @@ async def verify_otp(request: VerifyOTPRequest, db: AsyncSession = Depends(get_d
         token_type="bearer",
         user=user
     )
+
+@router.post("/register", response_model=AuthTokenResponse)
+async def register(request: RegisterUserRequest, db: AsyncSession = Depends(get_db)):
+    """Customer registration with email, hashed password, and initial wallet setup."""
+    clean_email = request.email.strip().lower()
+    clean_phone = request.phone.strip() if request.phone else None
+    clean_name = request.full_name.strip() if request.full_name else "User"
+    password = request.password.strip()
+
+    if not clean_email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+
+    existing_res = await db.execute(select(User).filter(User.email == clean_email))
+    existing_user = existing_res.scalar_one_or_none()
+    if existing_user:
+        if not existing_user.hashed_password:
+            existing_user.hashed_password = hash_password(password)
+            if clean_name and existing_user.full_name == "User":
+                existing_user.full_name = clean_name
+            if clean_phone and not existing_user.phone:
+                existing_user.phone = clean_phone
+            db.add(existing_user)
+            await db.commit()
+            await db.refresh(existing_user)
+            token = create_access_token({
+                "uid": existing_user.firebase_uid,
+                "user_id": existing_user.id,
+                "email": existing_user.email,
+                "name": existing_user.full_name,
+                "role": existing_user.role,
+                "owner_status": existing_user.owner_status or "approved"
+            })
+            return AuthTokenResponse(access_token=token, token_type="bearer", user=existing_user)
+        else:
+            raise HTTPException(status_code=400, detail="This email is already registered. Please log in.")
+
+    clean_id = clean_email.replace("@", "_").replace(".", "_")
+    new_user = User(
+        firebase_uid=f"usr_{clean_id}",
+        email=clean_email,
+        full_name=clean_name,
+        phone=clean_phone,
+        hashed_password=hash_password(password),
+        role="user",
+        owner_status="approved",
+        is_verified=True
+    )
+    db.add(new_user)
+    await db.flush()
+
+    wallet = Wallet(user_id=new_user.id, balance=500.0, coins=100)
+    db.add(wallet)
+    await db.commit()
+    await db.refresh(new_user)
+
+    token = create_access_token({
+        "uid": new_user.firebase_uid,
+        "user_id": new_user.id,
+        "email": new_user.email,
+        "name": new_user.full_name,
+        "role": new_user.role,
+        "owner_status": new_user.owner_status or "approved"
+    })
+    return AuthTokenResponse(access_token=token, token_type="bearer", user=new_user)
 
 @router.post("/register-owner", response_model=AuthTokenResponse)
 async def register_owner(request: RegisterOwnerRequest, db: AsyncSession = Depends(get_db)):
@@ -423,13 +497,12 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
             await db.commit()
             is_valid_pw = True
 
-    # Dev seed fallback for owner/demo accounts
-    if not is_valid_pw and not user.hashed_password:
-        if request.password in ["password123", "admin123", "password", "owner123", "AdminMaster@2026!"]:
-            user.hashed_password = hash_password(request.password)
-            db.add(user)
-            await db.commit()
-            is_valid_pw = True
+    # Fallback for accounts created via OTP/OAuth/legacy sync without an existing hashed password
+    if not is_valid_pw and not user.hashed_password and len(request.password) >= 4:
+        user.hashed_password = hash_password(request.password)
+        db.add(user)
+        await db.commit()
+        is_valid_pw = True
 
     if not is_valid_pw:
         logger.warning(f"[AUTH LOGIN FAIL] Password verification failed for: '{email_clean}'")

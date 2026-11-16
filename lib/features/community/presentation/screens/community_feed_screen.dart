@@ -27,12 +27,81 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
   StreamSubscription<Map<String, dynamic>>? _personalInboxSub;
 
   String _getMyUsername() {
+    if (SessionManager.username != null && SessionManager.username!.trim().isNotEmpty) {
+      final u = SessionManager.username!.trim();
+      if (u.toLowerCase() != 'user' && u.toLowerCase() != 'player') return u;
+    }
     final myProfile = ref.read(fetchUserProfileProvider).valueOrNull;
-    return SessionManager.username ??
-        (myProfile?.fullName != null && myProfile!.fullName!.isNotEmpty && myProfile.fullName!.toLowerCase() != 'user' ? myProfile.fullName! : '') ??
-        myProfile?.email?.split('@')[0] ??
-        '';
+    if (myProfile?.fullName != null &&
+        myProfile!.fullName!.trim().isNotEmpty &&
+        myProfile.fullName!.toLowerCase() != 'user' &&
+        myProfile.fullName!.toLowerCase() != 'player') {
+      return myProfile.fullName!.trim();
+    }
+    if (SessionManager.email != null && SessionManager.email!.contains('@')) {
+      return SessionManager.email!.split('@')[0].trim();
+    }
+    if (myProfile?.email != null && myProfile!.email!.contains('@')) {
+      return myProfile.email!.split('@')[0].trim();
+    }
+    return 'player';
   }
+
+  int get _unreadCount => friendsList.fold<int>(
+        0,
+        (sum, f) => sum + ((f['unread'] is num) ? (f['unread'] as num).toInt() : 0),
+      );
+
+  static final List<Map<String, dynamic>> _defaultDemoFriends = [
+    {
+      'id': 1001,
+      'name': 'Rahul Sharma',
+      'username': 'rahul_sharma',
+      'role': 'Striker • Titans',
+      'avatar': 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100',
+      'lastMsg': 'Are you free for turf match at 7 PM? ⚽',
+      'time': '10:20 AM',
+      'unread': 2,
+      'isOnline': true,
+      'status': 'Online',
+    },
+    {
+      'id': 1002,
+      'name': 'Alex Johnson',
+      'username': 'alex_j',
+      'role': 'Midfielder • Play Arena',
+      'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
+      'lastMsg': 'Booked slot at Greenfield Arena 👍',
+      'time': '9:45 AM',
+      'unread': 1,
+      'isOnline': true,
+      'status': 'Online',
+    },
+    {
+      'id': 1003,
+      'name': 'Thunder Strikers FC',
+      'username': 'thunder_strikers',
+      'role': 'Team Group • 12 members',
+      'avatar': 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=100',
+      'lastMsg': 'Captain John: Lineup for Sunday Summer Cup 🏆',
+      'time': 'Yesterday',
+      'unread': 0,
+      'isOnline': false,
+      'status': 'Offline',
+    },
+    {
+      'id': 1004,
+      'name': 'David Williams',
+      'username': 'david_w',
+      'role': 'Goalkeeper • Wolves',
+      'avatar': 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=100',
+      'lastMsg': 'Clean sheet locked in today! 🧤',
+      'time': '2 days ago',
+      'unread': 0,
+      'isOnline': false,
+      'status': 'Offline',
+    },
+  ];
 
   @override
   void initState() {
@@ -59,9 +128,13 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
     // 1. Instantly display cached conversations
     if (myUname.isNotEmpty) {
       final cached = await LocalChatStorage.getConversations(myUname);
-      if (mounted && cached.isNotEmpty && friendsList.isEmpty) {
+      if (mounted && cached.isNotEmpty) {
         setState(() => friendsList = cached);
       }
+    }
+
+    if (friendsList.isEmpty) {
+      setState(() => friendsList = List<Map<String, dynamic>>.from(_defaultDemoFriends));
     }
 
     // 2. Fetch from server
@@ -219,6 +292,24 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
             }
           });
         }
+      } else if (eventType == 'post_comment') {
+        final postId = event['post_id'] is num ? (event['post_id'] as num).toInt() : null;
+        if (postId != null && mounted) {
+          setState(() {
+            final pIdx = posts.indexWhere((p) => p['id'] == postId);
+            if (pIdx != -1) {
+              final curr = (posts[pIdx]['comments'] is num) ? (posts[pIdx]['comments'] as num).toInt() : 0;
+              posts[pIdx]['comments'] = curr + 1;
+            }
+            final list = _postComments.putIfAbsent(postId, () => []);
+            list.add({
+              'author': event['author'] ?? 'Player',
+              'avatar': event['avatar'] ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+              'text': event['comment'] ?? '',
+              'time': event['time'] ?? 'Just now',
+            });
+          });
+        }
       } else if (eventType == 'new_user_joined') {
         final name = event['name'] as String? ?? 'A new player';
         if (mounted) {
@@ -282,6 +373,39 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
   ];
 
   List<Map<String, dynamic>> friendsList = [];
+
+  final Map<int, List<Map<String, dynamic>>> _postComments = {
+    1: [
+      {
+        'author': 'Rahul Sharma',
+        'avatar': 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100',
+        'text': 'What an incredible winner in stoppage time! 🔥',
+        'time': '1 hr ago',
+      },
+      {
+        'author': 'David Williams',
+        'avatar': 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=100',
+        'text': 'Defense held strong! See you on Friday 🧤',
+        'time': '35 mins ago',
+      },
+    ],
+    2: [
+      {
+        'author': 'Alex Johnson',
+        'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
+        'text': 'Drills looked intense, coach! Ready for the match ⚽',
+        'time': '2 hrs ago',
+      },
+    ],
+    3: [
+      {
+        'author': 'Rahul Sharma',
+        'avatar': 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100',
+        'text': 'Brick wall performance! 🧤🔥',
+        'time': 'Yesterday',
+      },
+    ],
+  };
 
   void _showCreatePostDialog() {
     final textController = TextEditingController();
@@ -391,6 +515,294 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _openChatWithAuthor(String author, String? avatar) {
+    final cleanUname = author.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+    final dynamicId = cleanUname.hashCode.abs();
+    final fallbackAvatar = (avatar != null && avatar.startsWith('http'))
+        ? avatar
+        : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100';
+
+    final friendItem = {
+      'id': dynamicId,
+      'friendId': dynamicId,
+      'name': author,
+      'username': cleanUname,
+      'role': 'Community Player',
+      'avatar': fallbackAvatar,
+      'lastMsg': 'Chat started from community feed',
+      'time': 'Just now',
+      'unread': 0,
+      'isOnline': true,
+      'status': 'Online',
+    };
+
+    if (!friendsList.any((f) => (f['username'] ?? '').toString().toLowerCase() == cleanUname)) {
+      setState(() => friendsList.insert(0, friendItem));
+    }
+
+    context.push('/friend-chat', extra: friendItem);
+  }
+
+  void _showPostCommentsDialog(Map<String, dynamic> post) {
+    final commentCtrl = TextEditingController();
+    final postId = (post['id'] is num) ? (post['id'] as num).toInt() : 0;
+    final commentsList = _postComments.putIfAbsent(postId, () => []);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final sheetHeight = MediaQuery.of(ctx).size.height * 0.8;
+
+          void sendComment() {
+            final text = commentCtrl.text.trim();
+            if (text.isEmpty) return;
+
+            final myName = _getMyUsername();
+            final displayName = (myName.isNotEmpty && myName.toLowerCase() != 'player')
+                ? (myName[0].toUpperCase() + myName.substring(1))
+                : 'You';
+
+            final newComment = {
+              'author': displayName,
+              'avatar': 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+              'text': text,
+              'time': 'Just now',
+            };
+
+            setModalState(() {
+              commentsList.add(newComment);
+              commentCtrl.clear();
+            });
+
+            setState(() {
+              final cur = (post['comments'] is num) ? (post['comments'] as num).toInt() : 0;
+              post['comments'] = cur + 1;
+            });
+
+            // WebSocket broadcast
+            try {
+              ref.read(realtimeServiceProvider).emitToChannel('community', {
+                'type': 'post_comment',
+                'post_id': postId,
+                'author': displayName,
+                'comment': text,
+                'time': 'Just now',
+              });
+            } catch (_) {}
+
+            // Backend REST call
+            try {
+              final dio = ref.read(apiClientProvider);
+              dio.post('/community/$postId/comments', data: {
+                'author': displayName,
+                'comment': text,
+              }).catchError((_) {});
+            } catch (_) {}
+          }
+
+          return Container(
+            height: sheetHeight,
+            decoration: const BoxDecoration(
+              color: Color(0xFF0F1B12),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 12,
+              left: 18,
+              right: 18,
+              top: 14,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Discussion & Comments',
+                        style: GoogleFonts.poppins(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textWhite,
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _openChatWithAuthor(post['author'], post['avatar']);
+                      },
+                      icon: const Icon(Icons.chat_bubble_outline, size: 15, color: AppTheme.primaryGreen),
+                      label: Text(
+                        'DM Author',
+                        style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: AppTheme.textGrey),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                // Post excerpt preview
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF16251B),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF243A2B)),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundImage: NetworkImage(post['avatar'] ?? 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100'),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${post['author']}: "${post['content']}"',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 11.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Comments list
+                Expanded(
+                  child: commentsList.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.chat_bubble_outline_rounded, size: 40, color: Color(0xFF384F3F)),
+                              const SizedBox(height: 8),
+                              Text(
+                                'No comments yet. Be the first to reply!',
+                                style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12.5),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: commentsList.length,
+                          separatorBuilder: (_, __) => const Divider(color: Color(0xFF142418), height: 1),
+                          itemBuilder: (context, idx) {
+                            final c = commentsList[idx];
+                            final cAuthor = (c['author'] ?? 'Player').toString();
+                            final cText = (c['text'] ?? '').toString();
+                            final cTime = (c['time'] ?? 'Just now').toString();
+                            final cAvatar = (c['avatar'] ?? '').toString().trim();
+                            final hasAv = cAvatar.startsWith('http');
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
+                                    backgroundImage: hasAv ? NetworkImage(cAvatar) : null,
+                                    child: !hasAv
+                                        ? Text(
+                                            cAuthor.isNotEmpty ? cAuthor[0].toUpperCase() : '?',
+                                            style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontSize: 11, fontWeight: FontWeight.bold),
+                                          )
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              cAuthor,
+                                              style: GoogleFonts.poppins(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
+                                            Text(
+                                              cTime,
+                                              style: GoogleFonts.poppins(color: AppTheme.textMuted, fontSize: 10),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          cText,
+                                          style: GoogleFonts.poppins(color: const Color(0xFFD6E2D9), fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                // Comment text input bar
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF16281C),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFF26422F)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: commentCtrl,
+                          style: GoogleFonts.poppins(color: Colors.white, fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'Add a comment or message on this match...',
+                            hintStyle: GoogleFonts.poppins(color: const Color(0xFF708577), fontSize: 12.5),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          ),
+                          onSubmitted: (_) => sendComment(),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.send_rounded, color: AppTheme.primaryGreen, size: 20),
+                        onPressed: sendComment,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -657,8 +1069,35 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                                     final avatar = (user['avatar'] ?? '').toString().trim();
                                     final hasValidAvatar = avatar.startsWith('http');
 
+                                    void startChatWithUser() {
+                                      Navigator.pop(ctx);
+                                      final fallbackAvatar = hasValidAvatar ? avatar : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100';
+                                      final dynamicId = user['id'] ?? username.hashCode.abs();
+                                      final friendItem = {
+                                        'id': dynamicId,
+                                        'friendId': dynamicId,
+                                        'name': name,
+                                        'username': username,
+                                        'role': role,
+                                        'avatar': fallbackAvatar,
+                                        'lastMsg': 'Chat started',
+                                        'time': 'Just now',
+                                        'unread': 0,
+                                        'isOnline': true,
+                                        'status': 'Online',
+                                      };
+                                      final existingIdx = friendsList.indexWhere(
+                                        (f) => (f['username'] ?? '').toString().toLowerCase() == username.toLowerCase(),
+                                      );
+                                      if (existingIdx == -1) {
+                                        setState(() => friendsList.insert(0, friendItem));
+                                      }
+                                      context.push('/friend-chat', extra: friendItem);
+                                    }
+
                                     return ListTile(
                                       contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                                      onTap: startChatWithUser,
                                       leading: CircleAvatar(
                                         radius: 22,
                                         backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
@@ -689,31 +1128,7 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                                         ),
                                       ),
                                       trailing: ElevatedButton.icon(
-                                        onPressed: () {
-                                          Navigator.pop(ctx);
-                                          final fallbackAvatar = hasValidAvatar ? avatar : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100';
-                                          final dynamicId = user['id'] ?? username.hashCode.abs();
-                                          final friendItem = {
-                                            'id': dynamicId,
-                                            'friendId': dynamicId,
-                                            'name': name,
-                                            'username': username,
-                                            'role': role,
-                                            'avatar': fallbackAvatar,
-                                            'lastMsg': 'Chat started',
-                                            'time': 'Just now',
-                                            'unread': 0,
-                                            'isOnline': true,
-                                            'status': 'Online',
-                                          };
-                                          final existingIdx = friendsList.indexWhere(
-                                            (f) => (f['username'] ?? '').toString().toLowerCase() == username.toLowerCase(),
-                                          );
-                                          if (existingIdx == -1) {
-                                            setState(() => friendsList.insert(0, friendItem));
-                                          }
-                                          context.push('/friend-chat', extra: friendItem);
-                                        },
+                                        onPressed: startChatWithUser,
                                         icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14, color: Colors.black),
                                         label: Text(
                                           'Chat',
@@ -882,25 +1297,26 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                     size: 22,
                   ),
                 ),
-                Positioned(
-                  right: 2,
-                  top: 2,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                      color: AppTheme.primaryGreen,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '3',
-                      style: GoogleFonts.poppins(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                if (_unreadCount > 0)
+                  Positioned(
+                    right: 2,
+                    top: 2,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        color: AppTheme.primaryGreen,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '$_unreadCount',
+                        style: GoogleFonts.poppins(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -920,7 +1336,7 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                 children: [
                   _tabItem(0, 'Feed', null),
                   _tabItem(1, 'Trending', null),
-                  _tabItem(2, 'Chats', 3),
+                  _tabItem(2, 'Chats', _unreadCount > 0 ? _unreadCount : null),
                 ],
               ),
             ),
@@ -1091,15 +1507,22 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
               // Friends Online Avatars
               ...friendsList.map((friend) {
                 final isOnline = friend['isOnline'] == true;
+                final fName = (friend['name'] ?? 'Friend').toString().trim();
+                final displayName = fName.isNotEmpty ? fName : 'Friend';
+                final username = (friend['username'] ?? displayName.toLowerCase()).toString();
+                final avatar = (friend['avatar'] ?? '').toString().trim();
+                final hasAvatar = avatar.startsWith('http');
+                final dynamicId = friend['id'] ?? username.hashCode.abs();
+
                 return GestureDetector(
                   onTap: () {
                     context.push('/friend-chat', extra: {
-                      'id': friend['id'],
-                      'friendId': friend['id'],
-                      'name': friend['name'],
-                      'username': friend['username'],
-                      'avatar': friend['avatar'],
-                      'status': friend['status'],
+                      'id': dynamicId,
+                      'friendId': dynamicId,
+                      'name': displayName,
+                      'username': username,
+                      'avatar': hasAvatar ? avatar : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+                      'status': friend['status'] ?? 'Online',
                     });
                   },
                   child: Padding(
@@ -1119,7 +1542,14 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                               ),
                               child: CircleAvatar(
                                 radius: 24,
-                                backgroundImage: NetworkImage(friend['avatar'] ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'),
+                                backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
+                                backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
+                                child: !hasAvatar
+                                    ? Text(
+                                        displayName[0].toUpperCase(),
+                                        style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+                                      )
+                                    : null,
                               ),
                             ),
                             if (isOnline)
@@ -1400,25 +1830,45 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
               children: [
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundImage: NetworkImage(post['avatar']),
+                    GestureDetector(
+                      onTap: () => _openChatWithAuthor(post['author'], post['avatar']),
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
+                        backgroundImage: (post['avatar'] != null && post['avatar'].toString().trim().startsWith('http'))
+                            ? NetworkImage(post['avatar'].toString().trim())
+                            : null,
+                        child: (post['avatar'] == null || !post['avatar'].toString().trim().startsWith('http'))
+                            ? Text(
+                                post['author'].toString().isNotEmpty ? post['author'].toString()[0].toUpperCase() : 'P',
+                                style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+                              )
+                            : null,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            post['author'],
-                            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
-                          ),
-                          Text(
-                            '${post['role']} • ${post['time']}',
-                            style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textGrey),
-                          ),
-                        ],
+                      child: GestureDetector(
+                        onTap: () => _openChatWithAuthor(post['author'], post['avatar']),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              post['author'],
+                              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textWhite),
+                            ),
+                            Text(
+                              '${post['role']} • ${post['time']}',
+                              style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textGrey),
+                            ),
+                          ],
+                        ),
                       ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, color: AppTheme.primaryGreen, size: 20),
+                      tooltip: 'Message ${post['author']}',
+                      onPressed: () => _openChatWithAuthor(post['author'], post['avatar']),
                     ),
                   ],
                 ),
@@ -1483,13 +1933,20 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 24),
-                    Row(
-                      children: [
-                        const Icon(Icons.chat_bubble_outline, color: AppTheme.textGrey, size: 18),
-                        const SizedBox(width: 6),
-                        Text('${post['comments']}', style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textWhite)),
-                      ],
+                    const SizedBox(width: 20),
+                    InkWell(
+                      onTap: () => _showPostCommentsDialog(post),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.chat_bubble_outline_rounded, color: AppTheme.primaryGreen, size: 18),
+                            const SizedBox(width: 6),
+                            Text('${post['comments']}', style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textWhite)),
+                          ],
+                        ),
+                      ),
                     ),
                     const Spacer(),
                     IconButton(

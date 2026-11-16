@@ -107,6 +107,34 @@ async def like_post(post_id: int, db: AsyncSession = Depends(get_db)):
     })
 
     return {"message": "Liked!", "likes_count": post.likes_count}
+ 
+class CommentCreate(BaseModel):
+    author: Optional[str] = "Player"
+    comment: str
+
+@router.post("/{post_id}/comments")
+async def add_post_comment(
+    post_id: int,
+    comment_in: CommentCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(CommunityPost).filter(CommunityPost.id == post_id))
+    post = result.scalar_one_or_none()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    post.comments_count = (post.comments_count or 0) + 1
+    await db.commit()
+
+    payload = {
+        "type": "post_comment",
+        "post_id": post_id,
+        "author": comment_in.author or "Player",
+        "comment": comment_in.comment,
+        "comments_count": post.comments_count,
+        "time": "Just now",
+    }
+    await ws_manager.broadcast("community", payload)
+    return payload
 
 
 # --- Direct 1-on-1 Friend Chat Endpoints ---

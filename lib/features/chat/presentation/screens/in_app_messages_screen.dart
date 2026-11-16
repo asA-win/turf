@@ -26,11 +26,24 @@ class _InAppMessagesScreenState extends ConsumerState<InAppMessagesScreen> {
   List<Map<String, dynamic>> chats = [];
 
   String _getMyUsername() {
+    if (SessionManager.username != null && SessionManager.username!.trim().isNotEmpty) {
+      final u = SessionManager.username!.trim();
+      if (u.toLowerCase() != 'user' && u.toLowerCase() != 'player') return u;
+    }
     final myProfile = ref.read(fetchUserProfileProvider).valueOrNull;
-    return SessionManager.username ??
-        (myProfile?.fullName != null && myProfile!.fullName!.isNotEmpty && myProfile.fullName!.toLowerCase() != 'user' ? myProfile.fullName! : '') ??
-        myProfile?.email?.split('@')[0] ??
-        '';
+    if (myProfile?.fullName != null &&
+        myProfile!.fullName!.trim().isNotEmpty &&
+        myProfile.fullName!.toLowerCase() != 'user' &&
+        myProfile.fullName!.toLowerCase() != 'player') {
+      return myProfile.fullName!.trim();
+    }
+    if (SessionManager.email != null && SessionManager.email!.contains('@')) {
+      return SessionManager.email!.split('@')[0].trim();
+    }
+    if (myProfile?.email != null && myProfile!.email!.contains('@')) {
+      return myProfile.email!.split('@')[0].trim();
+    }
+    return 'player';
   }
 
   @override

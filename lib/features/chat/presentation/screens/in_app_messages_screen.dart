@@ -255,9 +255,10 @@ class _InAppMessagesScreenState extends ConsumerState<InAppMessagesScreen> {
             padding: EdgeInsets.only(bottom: bottomInset),
             child: Container(
               height: sheetHeight,
-              decoration: const BoxDecoration(
-                color: Color(0xFF0F1B12),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              decoration: BoxDecoration(
+                color: const Color(0xFF132218),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(color: const Color(0xFF26422F), width: 1.2),
               ),
               padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
               child: Column(
@@ -304,9 +305,9 @@ class _InAppMessagesScreenState extends ConsumerState<InAppMessagesScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF16281C),
+                      color: const Color(0xFF1B3122),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFF26422F)),
+                      border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.5)),
                     ),
                     child: TextField(
                       controller: searchCtrl,
@@ -314,11 +315,11 @@ class _InAppMessagesScreenState extends ConsumerState<InAppMessagesScreen> {
                       style: GoogleFonts.poppins(color: Colors.white, fontSize: 13),
                       decoration: InputDecoration(
                         hintText: 'Search username (e.g. user12, user31) or name...',
-                        hintStyle: GoogleFonts.poppins(color: const Color(0xFF708577), fontSize: 13),
+                        hintStyle: GoogleFonts.poppins(color: const Color(0xFF88A090), fontSize: 13),
                         prefixIcon: const Icon(Icons.search, color: AppTheme.primaryGreen, size: 20),
                         suffixIcon: searchCtrl.text.isNotEmpty
                             ? IconButton(
-                                icon: const Icon(Icons.clear, color: Colors.white54, size: 18),
+                                icon: const Icon(Icons.clear, color: Colors.white70, size: 18),
                                 onPressed: () {
                                   searchCtrl.clear();
                                   doSearch('');
@@ -332,20 +333,35 @@ class _InAppMessagesScreenState extends ConsumerState<InAppMessagesScreen> {
                       onChanged: doSearch,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  if (isSearching) ...[
+                    const SizedBox(height: 4),
+                    const LinearProgressIndicator(
+                      color: AppTheme.primaryGreen,
+                      backgroundColor: Colors.transparent,
+                      minHeight: 2,
+                    ),
+                  ],
+                  const SizedBox(height: 10),
 
                   Expanded(
-                    child: isSearching
-                        ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
-                        : (searchCtrl.text.trim().isNotEmpty)
-                            ? (searchResults.isEmpty
-                                ? Center(
-                                    child: SingleChildScrollView(
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
+                    child: (searchCtrl.text.trim().isNotEmpty)
+                        ? (searchResults.isEmpty
+                            ? Center(
+                                child: SingleChildScrollView(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        if (isSearching) ...[
+                                          const CircularProgressIndicator(color: AppTheme.primaryGreen),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            'Searching platform players...',
+                                            style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 13),
+                                          ),
+                                          const SizedBox(height: 16),
+                                        ],
                                             Container(
                                               padding: const EdgeInsets.all(18),
                                               decoration: BoxDecoration(

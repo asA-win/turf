@@ -435,10 +435,10 @@ class _FriendChatScreenState extends ConsumerState<FriendChatScreen> {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundImage: NetworkImage(
-                    widget.friendAvatar ??
-                        'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100',
-                  ),
+                  backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
+                  backgroundImage: (widget.friendAvatar != null && widget.friendAvatar!.trim().startsWith('http'))
+                      ? NetworkImage(widget.friendAvatar!.trim())
+                      : const NetworkImage('https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100'),
                 ),
                 Positioned(
                   right: 0,

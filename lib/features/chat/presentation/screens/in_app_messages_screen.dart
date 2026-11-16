@@ -244,346 +244,365 @@ class _InAppMessagesScreenState extends ConsumerState<InAppMessagesScreen> {
             WidgetsBinding.instance.addPostFrameCallback((_) => doSearch(initialQuery));
           }
 
-          final sheetHeight = MediaQuery.of(ctx).size.height * 0.85;
+          final media = MediaQuery.of(ctx);
+          final bottomInset = media.viewInsets.bottom;
+          final screenHeight = media.size.height;
+          // Dynamically scale sheet height to visible screen area above software keyboard
+          final visibleHeight = screenHeight - bottomInset;
+          final sheetHeight = bottomInset > 0
+              ? visibleHeight * 0.90
+              : screenHeight * 0.85;
 
-          return Container(
-            height: sheetHeight,
-            decoration: const BoxDecoration(
-              color: Color(0xFF0F1B12),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-              left: 18,
-              right: 18,
-              top: 14,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Find Friends & Chat',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textWhite,
+          return Padding(
+            padding: EdgeInsets.only(bottom: bottomInset),
+            child: Container(
+              height: sheetHeight,
+              decoration: const BoxDecoration(
+                color: Color(0xFF0F1B12),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: AppTheme.textGrey),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-                Text(
-                  'Search for friends with their username or name to start chatting:',
-                  style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12),
-                ),
-                const SizedBox(height: 14),
-
-                // Search Box
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF16281C),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF26422F)),
                   ),
-                  child: TextField(
-                    controller: searchCtrl,
-                    autofocus: true,
-                    style: GoogleFonts.poppins(color: Colors.white, fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: 'Search username (e.g. user12, user31) or name...',
-                      hintStyle: GoogleFonts.poppins(color: const Color(0xFF708577), fontSize: 13),
-                      prefixIcon: const Icon(Icons.search, color: AppTheme.primaryGreen, size: 20),
-                      suffixIcon: searchCtrl.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, color: Colors.white54, size: 18),
-                              onPressed: () {
-                                searchCtrl.clear();
-                                doSearch('');
-                              },
-                            )
-                          : null,
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    onChanged: doSearch,
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Find Friends & Chat',
+                        style: GoogleFonts.poppins(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textWhite,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: AppTheme.textGrey, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Search for friends with their username or name to start chatting:',
+                    style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 11.5),
+                  ),
+                  const SizedBox(height: 10),
 
-                Expanded(
-                  child: isSearching
-                      ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
-                      : (searchCtrl.text.trim().isNotEmpty)
-                          ? (searchResults.isEmpty
-                              ? Center(
-                                  child: SingleChildScrollView(
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(20),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF132318),
-                                              borderRadius: BorderRadius.circular(20),
-                                              border: Border.all(color: const Color(0xFF26422F)),
+                  // Search Box
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF16281C),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFF26422F)),
+                    ),
+                    child: TextField(
+                      controller: searchCtrl,
+                      autofocus: true,
+                      style: GoogleFonts.poppins(color: Colors.white, fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'Search username (e.g. user12, user31) or name...',
+                        hintStyle: GoogleFonts.poppins(color: const Color(0xFF708577), fontSize: 13),
+                        prefixIcon: const Icon(Icons.search, color: AppTheme.primaryGreen, size: 20),
+                        suffixIcon: searchCtrl.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, color: Colors.white54, size: 18),
+                                onPressed: () {
+                                  searchCtrl.clear();
+                                  doSearch('');
+                                },
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      onChanged: doSearch,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  Expanded(
+                    child: isSearching
+                        ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
+                        : (searchCtrl.text.trim().isNotEmpty)
+                            ? (searchResults.isEmpty
+                                ? Center(
+                                    child: SingleChildScrollView(
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(18),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF132318),
+                                                borderRadius: BorderRadius.circular(20),
+                                                border: Border.all(color: const Color(0xFF26422F)),
+                                              ),
+                                              child: Builder(
+                                                builder: (context) {
+                                                  final rawQuery = searchCtrl.text.trim().replaceAll(RegExp(r'^@+'), '').trim();
+                                                  final cleanQuery = rawQuery.isNotEmpty ? rawQuery : 'player';
+                                                  final initial = cleanQuery.characters.isNotEmpty ? cleanQuery.characters.first.toUpperCase() : '?';
+
+                                                  return Column(
+                                                    children: [
+                                                      CircleAvatar(
+                                                        radius: 28,
+                                                        backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
+                                                        child: Text(
+                                                          initial,
+                                                          style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 10),
+                                                      Text(
+                                                        '@$cleanQuery',
+                                                        style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        'Start a 1-on-1 direct conversation with @$cleanQuery right now!',
+                                                        textAlign: TextAlign.center,
+                                                        style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 11.5),
+                                                      ),
+                                                      const SizedBox(height: 14),
+                                                      ElevatedButton.icon(
+                                                        onPressed: () {
+                                                          Navigator.pop(ctx);
+                                                          final dynamicId = cleanQuery.hashCode.abs();
+                                                          final displayName = cleanQuery.characters.isNotEmpty
+                                                              ? cleanQuery.characters.first.toUpperCase() + cleanQuery.characters.skip(1).toString()
+                                                              : 'Friend';
+                                                          final friendItem = {
+                                                            'id': dynamicId,
+                                                            'friendId': dynamicId,
+                                                            'name': displayName,
+                                                            'username': cleanQuery,
+                                                            'role': 'Community Player',
+                                                            'avatar': 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+                                                            'lastMsg': 'Chat started',
+                                                            'time': 'Just now',
+                                                            'unread': 0,
+                                                            'isOnline': true,
+                                                            'status': 'Online',
+                                                          };
+                                                          if (!chats.any((f) => (f['username'] ?? '').toString().toLowerCase() == cleanQuery.toLowerCase())) {
+                                                            setState(() => chats.insert(0, friendItem));
+                                                          }
+                                                          context.push('/friend-chat', extra: friendItem);
+                                                        },
+                                                        icon: const Icon(Icons.send_rounded, size: 16, color: Colors.black),
+                                                        label: Text(
+                                                          'Chat with @$cleanQuery',
+                                                          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.black, fontSize: 13),
+                                                        ),
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: AppTheme.primaryGreen,
+                                                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  );
+                                                },
+                                              ),
                                             ),
-                                            child: Column(
-                                              children: [
-                                                CircleAvatar(
-                                                  radius: 28,
-                                                  backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
-                                                  child: Text(
-                                                    searchCtrl.text.trim().replaceAll('@', '').isNotEmpty
-                                                        ? searchCtrl.text.trim().replaceAll('@', '')[0].toUpperCase()
-                                                        : '?',
-                                                    style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 12),
-                                                Text(
-                                                  '@${searchCtrl.text.trim().replaceAll('@', '')}',
-                                                  style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                                                ),
-                                                const SizedBox(height: 6),
-                                                Text(
-                                                  'Start a 1-on-1 direct conversation with @${searchCtrl.text.trim().replaceAll('@', '')} right now!',
-                                                  textAlign: TextAlign.center,
-                                                  style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12),
-                                                ),
-                                                const SizedBox(height: 16),
-                                                ElevatedButton.icon(
-                                                  onPressed: () {
-                                                    final rawUname = searchCtrl.text.trim().replaceAll('@', '');
-                                                    Navigator.pop(ctx);
-                                                    final dynamicId = rawUname.hashCode.abs();
-                                                    final friendItem = {
-                                                      'id': dynamicId,
-                                                      'friendId': dynamicId,
-                                                      'name': rawUname.isNotEmpty ? rawUname[0].toUpperCase() + rawUname.substring(1) : 'Friend',
-                                                      'username': rawUname,
-                                                      'role': 'Community Player',
-                                                      'avatar': 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
-                                                      'lastMsg': 'Chat started',
-                                                      'time': 'Just now',
-                                                      'unread': 0,
-                                                      'isOnline': true,
-                                                      'status': 'Online',
-                                                    };
-                                                    if (!chats.any((f) => (f['username'] ?? '').toString().toLowerCase() == rawUname.toLowerCase())) {
-                                                      setState(() => chats.insert(0, friendItem));
-                                                    }
-                                                    context.push('/friend-chat', extra: friendItem);
-                                                  },
-                                                  icon: const Icon(Icons.send_rounded, size: 16, color: Colors.black),
-                                                  label: Text(
-                                                    'Chat with @${searchCtrl.text.trim().replaceAll('@', '')}',
-                                                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.black),
-                                                  ),
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: AppTheme.primaryGreen,
-                                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                                  ),
-                                                ),
-                                              ],
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : ListView.separated(
+                                    itemCount: searchResults.length,
+                                    separatorBuilder: (_, __) => const Divider(color: Color(0xFF16251C), height: 1),
+                                    itemBuilder: (context, idx) {
+                                      final user = searchResults[idx];
+                                      final rawName = (user['name'] ?? '').toString().trim();
+                                      final name = rawName.isNotEmpty ? rawName : 'Player';
+                                      final rawUname = (user['username'] ?? '').toString().trim();
+                                      final username = rawUname.isNotEmpty ? rawUname : name.toLowerCase();
+                                      final role = (user['role'] ?? 'Active Player').toString();
+                                      final avatar = (user['avatar'] ?? '').toString().trim();
+                                      final hasValidAvatar = avatar.startsWith('http');
+                                      final initial = name.characters.isNotEmpty ? name.characters.first.toUpperCase() : '?';
+
+                                      return ListTile(
+                                        contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                                        leading: CircleAvatar(
+                                          radius: 22,
+                                          backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
+                                          backgroundImage: hasValidAvatar ? NetworkImage(avatar) : null,
+                                          child: !hasValidAvatar
+                                              ? Text(
+                                                  initial,
+                                                  style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+                                                )
+                                              : null,
+                                        ),
+                                        title: Text(
+                                          name,
+                                          style: GoogleFonts.poppins(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        subtitle: Text(
+                                          '@$username • $role',
+                                          style: GoogleFonts.poppins(
+                                            color: AppTheme.primaryGreen,
+                                            fontSize: 11.5,
+                                          ),
+                                        ),
+                                        trailing: ElevatedButton.icon(
+                                          onPressed: () {
+                                            Navigator.pop(ctx);
+                                            final fallbackAvatar = hasValidAvatar ? avatar : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100';
+                                            final dynamicId = user['id'] ?? username.hashCode.abs();
+                                            final existingIdx = chats.indexWhere(
+                                              (c) => (c['username'] ?? '').toString().toLowerCase() == username.toLowerCase(),
+                                            );
+                                            if (existingIdx == -1) {
+                                              setState(() {
+                                                chats.insert(0, {
+                                                  'id': dynamicId,
+                                                  'name': name,
+                                                  'username': username,
+                                                  'msg': 'Chat started',
+                                                  'time': 'Just now',
+                                                  'unread': 0,
+                                                  'type': 'friend',
+                                                  'avatar': fallbackAvatar,
+                                                });
+                                              });
+                                            }
+                                            context.push('/friend-chat', extra: {
+                                              'id': dynamicId,
+                                              'friendId': dynamicId,
+                                              'name': name,
+                                              'username': username,
+                                              'avatar': fallbackAvatar,
+                                              'status': 'Online',
+                                            });
+                                          },
+                                          icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14, color: Colors.black),
+                                          label: Text(
+                                            'Chat',
+                                            style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: AppTheme.primaryGreen,
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ))
+                            : ListView(
+                                children: [
+                                  if (chats.isEmpty) ...[
+                                    const SizedBox(height: 30),
+                                    Center(
+                                      child: Column(
+                                        children: [
+                                          const Icon(Icons.person_search_rounded, size: 44, color: Color(0xFF384A3E)),
+                                          const SizedBox(height: 10),
+                                          Text(
+                                            'Search Friends by Username',
+                                            style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                                            child: Text(
+                                              'Type your friend’s username in the search bar above to start a 1-on-1 chat.',
+                                              textAlign: TextAlign.center,
+                                              style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 11.5),
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                  ),
-                                )
-                              : ListView.separated(
-                                  itemCount: searchResults.length,
-                                  separatorBuilder: (_, __) => const Divider(color: Color(0xFF16251C), height: 1),
-                                  itemBuilder: (context, idx) {
-                                    final user = searchResults[idx];
-                                    final rawName = (user['name'] ?? '').toString().trim();
-                                    final name = rawName.isNotEmpty ? rawName : 'Player';
-                                    final rawUname = (user['username'] ?? '').toString().trim();
-                                    final username = rawUname.isNotEmpty ? rawUname : name.toLowerCase();
-                                    final role = (user['role'] ?? 'Active Player').toString();
-                                    final avatar = (user['avatar'] ?? '').toString().trim();
-                                    final hasValidAvatar = avatar.startsWith('http');
+                                  ] else ...[
+                                    Text(
+                                      'Recent Contacts',
+                                      style: GoogleFonts.poppins(
+                                        color: const Color(0xFF8DA394),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    ...chats.map((c) {
+                                      final cName = (c['name'] ?? 'Friend').toString().trim();
+                                      final displayName = cName.isNotEmpty ? cName : 'Friend';
+                                      final username = (c['username'] ?? displayName.toLowerCase()).toString();
+                                      final avatar = (c['avatar'] ?? '').toString().trim();
+                                      final hasAvatar = avatar.startsWith('http');
+                                      final initial = displayName.characters.isNotEmpty ? displayName.characters.first.toUpperCase() : '?';
 
-                                    return ListTile(
-                                      contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                                      leading: CircleAvatar(
-                                        radius: 22,
-                                        backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
-                                        backgroundImage: hasValidAvatar ? NetworkImage(avatar) : null,
-                                        child: !hasValidAvatar
-                                            ? Text(
-                                                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                                style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
-                                              )
-                                            : null,
-                                      ),
-                                      title: Text(
-                                        name,
-                                        style: GoogleFonts.poppins(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      subtitle: Text(
-                                        '@$username • $role',
-                                        style: GoogleFonts.poppins(
-                                          color: AppTheme.primaryGreen,
-                                          fontSize: 11.5,
-                                        ),
-                                      ),
-                                      trailing: ElevatedButton.icon(
-                                        onPressed: () {
+                                      return ListTile(
+                                        contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                                        onTap: () {
                                           Navigator.pop(ctx);
-                                          final fallbackAvatar = hasValidAvatar ? avatar : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100';
-                                          final dynamicId = user['id'] ?? username.hashCode.abs();
-                                          final existingIdx = chats.indexWhere(
-                                            (c) => (c['username'] ?? '').toString().toLowerCase() == username.toLowerCase(),
-                                          );
-                                          if (existingIdx == -1) {
-                                            setState(() {
-                                              chats.insert(0, {
-                                                'id': dynamicId,
-                                                'name': name,
-                                                'username': username,
-                                                'msg': 'Chat started',
-                                                'time': 'Just now',
-                                                'unread': 0,
-                                                'type': 'friend',
-                                                'avatar': fallbackAvatar,
-                                              });
+                                          if (c['type'] == 'team') {
+                                            context.push('/team-chat');
+                                          } else {
+                                            context.push('/friend-chat', extra: {
+                                              'id': c['id'] ?? username.hashCode.abs(),
+                                              'friendId': c['id'] ?? username.hashCode.abs(),
+                                              'name': displayName,
+                                              'username': username,
+                                              'avatar': hasAvatar ? avatar : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+                                              'status': c['status'] ?? 'Online',
                                             });
                                           }
-                                          context.push('/friend-chat', extra: {
-                                            'id': dynamicId,
-                                            'friendId': dynamicId,
-                                            'name': name,
-                                            'username': username,
-                                            'avatar': fallbackAvatar,
-                                            'status': 'Online',
-                                          });
                                         },
-                                        icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14, color: Colors.black),
-                                        label: Text(
-                                          'Chat',
-                                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                                        leading: CircleAvatar(
+                                          backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
+                                          backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
+                                          child: !hasAvatar
+                                              ? Text(
+                                                  initial,
+                                                  style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+                                                )
+                                              : null,
                                         ),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: AppTheme.primaryGreen,
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ))
-                          : ListView(
-                              children: [
-                                if (chats.isEmpty) ...[
-                                  const SizedBox(height: 36),
-                                  Center(
-                                    child: Column(
-                                      children: [
-                                        const Icon(Icons.person_search_rounded, size: 48, color: Color(0xFF384A3E)),
-                                        const SizedBox(height: 12),
-                                        Text(
-                                          'Search Friends by Username',
+                                        title: Text(
+                                          displayName,
                                           style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                                         ),
-                                        const SizedBox(height: 6),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                                          child: Text(
-                                            'Type your friend’s username in the search bar above to start a 1-on-1 chat.',
-                                            textAlign: TextAlign.center,
-                                            style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12),
-                                          ),
+                                        subtitle: Text(
+                                          c['username'] != null ? '@${c['username']}' : (c['msg']?.toString() ?? ''),
+                                          style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12),
                                         ),
-                                      ],
-                                    ),
-                                  ),
-                                ] else ...[
-                                  Text(
-                                    'Recent Contacts',
-                                    style: GoogleFonts.poppins(
-                                      color: const Color(0xFF8DA394),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  ...chats.map((c) {
-                                    final cName = (c['name'] ?? 'Friend').toString().trim();
-                                    final displayName = cName.isNotEmpty ? cName : 'Friend';
-                                    final username = (c['username'] ?? displayName.toLowerCase()).toString();
-                                    final avatar = (c['avatar'] ?? '').toString().trim();
-                                    final hasAvatar = avatar.startsWith('http');
-                                    return ListTile(
-                                      contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                                      onTap: () {
-                                        Navigator.pop(ctx);
-                                        if (c['type'] == 'team') {
-                                          context.push('/team-chat');
-                                        } else {
-                                          context.push('/friend-chat', extra: {
-                                            'id': c['id'] ?? username.hashCode.abs(),
-                                            'friendId': c['id'] ?? username.hashCode.abs(),
-                                            'name': displayName,
-                                            'username': username,
-                                            'avatar': hasAvatar ? avatar : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
-                                            'status': c['status'] ?? 'Online',
-                                          });
-                                        }
-                                      },
-                                      leading: CircleAvatar(
-                                        backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
-                                        backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
-                                        child: !hasAvatar
-                                            ? Text(
-                                                displayName[0].toUpperCase(),
-                                                style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
-                                              )
-                                            : null,
-                                      ),
-                                      title: Text(
-                                        displayName,
-                                        style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                                      ),
-                                      subtitle: Text(
-                                        c['username'] != null ? '@${c['username']}' : (c['msg']?.toString() ?? ''),
-                                        style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12),
-                                      ),
-                                      trailing: const Icon(Icons.chat, color: AppTheme.primaryGreen, size: 20),
-                                    );
-                                  }),
+                                        trailing: const Icon(Icons.chat, color: AppTheme.primaryGreen, size: 20),
+                                      );
+                                    }),
+                                  ],
                                 ],
-                              ],
-                            ),
-                ),
-              ],
+                              ),
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -596,9 +615,9 @@ class _InAppMessagesScreenState extends ConsumerState<InAppMessagesScreen> {
     final filteredChats = chats.where((c) {
       if (_searchQuery.isEmpty) return true;
       final q = _searchQuery.toLowerCase();
-      final name = (c['name'] as String? ?? '').toLowerCase();
-      final username = (c['username'] as String? ?? '').toLowerCase();
-      final msg = (c['msg'] as String? ?? '').toLowerCase();
+      final name = (c['name'] ?? '').toString().toLowerCase();
+      final username = (c['username'] ?? '').toString().toLowerCase();
+      final msg = (c['msg'] ?? '').toString().toLowerCase();
       return name.contains(q) || username.contains(q) || msg.contains(q);
     }).toList();
 
@@ -748,7 +767,7 @@ class _InAppMessagesScreenState extends ConsumerState<InAppMessagesScreen> {
                               backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
                               child: !hasAvatar
                                   ? Text(
-                                      displayName[0].toUpperCase(),
+                                      displayName.characters.isNotEmpty ? displayName.characters.first.toUpperCase() : '?',
                                       style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold),
                                     )
                                   : null,

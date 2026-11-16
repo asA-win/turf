@@ -73,7 +73,10 @@ class _InvitePlayersScreenState extends State<InvitePlayersScreen> {
                     child: ListTile(
                       leading: CircleAvatar(
                         backgroundColor: AppTheme.surfaceDark,
-                        child: Text(f['name']![0], style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: Text(
+                          f['name'] != null && f['name']!.isNotEmpty ? f['name']![0] : 'P',
+                          style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
                       ),
                       title: Text(f['name']!, style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                       subtitle: Text(f['level']!, style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 11)),

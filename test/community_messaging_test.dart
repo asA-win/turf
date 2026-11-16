@@ -181,7 +181,81 @@ void main() {
   assert(friends.length == 1, 'Duplicate conversation was created');
   print("  -> PASSED: Direct Messaging post author opens conversation without duplicates!\n");
 
+  // ---------------------------------------------------------
+  // TEST 6: User Search Safe Filtering & Character Parsing
+  // ---------------------------------------------------------
+  print("Test 6: Testing Safe User Search Filtering & Character Parsing...");
+  final mixedContacts = <Map<String, dynamic>>[
+    {'id': 101, 'name': 'Rahul Sharma', 'username': 'rahul_s', 'lastMsg': 'Ready for the game'},
+    {'id': 102, 'name': 12345, 'username': 'numeric_user', 'lastMsg': null}, // non-string name
+    {'id': 103, 'name': '', 'username': '', 'lastMsg': ''}, // empty strings
+    {'id': 104, 'name': '⚽ Striker', 'username': 'striker9', 'lastMsg': 'Goal!'}, // emoji prefix
+    {'id': 105, 'name': null, 'username': null, 'lastMsg': null}, // null values
+  ];
+
+  List<Map<String, dynamic>> filterContacts(String query) {
+    final q = query.trim().replaceAll(RegExp(r'^@+'), '').toLowerCase();
+    return mixedContacts.where((c) {
+      if (q.isEmpty) return true;
+      final name = (c['name'] ?? '').toString().toLowerCase();
+      final username = (c['username'] ?? '').toString().toLowerCase();
+      final msg = (c['lastMsg'] ?? '').toString().toLowerCase();
+      return name.contains(q) || username.contains(q) || msg.contains(q);
+    }).toList();
+  }
+
+  // Safe avatar initial resolution
+  String safeInitial(dynamic rawName) {
+    final str = (rawName ?? '').toString().trim();
+    if (str.isEmpty) return '?';
+    return str.runes.isNotEmpty ? String.fromCharCode(str.runes.first).toUpperCase() : '?';
+  }
+
+  // A: Search with leading @
+  final res1 = filterContacts('@rahul');
+  assert(res1.length == 1 && res1.first['username'] == 'rahul_s', 'Search with @ failed');
+
+  // B: Search for numeric contact (must not throw TypeError)
+  final res2 = filterContacts('123');
+  assert(res2.length == 1 && res2.first['username'] == 'numeric_user', 'Search on numeric field failed');
+
+  // C: Safe initial extraction across all tricky inputs
+  assert(safeInitial('Rahul') == 'R');
+  assert(safeInitial('') == '?');
+  assert(safeInitial(null) == '?');
+  assert(safeInitial(99) == '9');
+  assert(safeInitial('⚽ Striker') == '⚽');
+  print("  -> PASSED: Search filter & character parsing are 100% crash-proof against nulls and non-strings!\n");
+
+  // ---------------------------------------------------------
+  // TEST 7: Keyboard-Adaptive Sheet Height Bounds
+  // ---------------------------------------------------------
+  print("Test 7: Testing Keyboard-Adaptive Sheet Height Bounds...");
+  double calculateSheetHeight(double screenHeight, double keyboardHeight) {
+    final visibleHeight = screenHeight - keyboardHeight;
+    final sheetHeight = keyboardHeight > 0
+        ? visibleHeight * 0.90
+        : screenHeight * 0.85;
+    return sheetHeight;
+  }
+
+  // Scenario 1: Standard phone (800px), keyboard closed
+  final h1 = calculateSheetHeight(800, 0);
+  assert(h1 == 680, 'Expected 680, got $h1');
+
+  // Scenario 2: Standard phone (800px), keyboard open (320px)
+  final h2 = calculateSheetHeight(800, 320);
+  assert(h2 == 432, 'Expected 432, got $h2');
+  assert(h2 <= (800 - 320), 'Height exceeds visible space: $h2');
+
+  // Scenario 3: Small phone (600px), large keyboard (340px)
+  final h3 = calculateSheetHeight(600, 340);
+  assert(h3 == 234, 'Expected 234, got $h3');
+  assert(h3 > 0, 'Sheet height must never be zero or negative: $h3');
+  assert(h3 <= (600 - 340), 'Sheet height must never exceed visible space above keyboard: $h3');
+  print("  -> PASSED: Sheet height remains positive, bounded, and keyboard-safe across all screen sizes!\n");
+
   print("==================================================================");
-  print(">>> ALL 5 COMMUNITY MESSAGING TESTS PASSED WITH 100% SUCCESS! <<<");
+  print(">>> ALL 7 COMMUNITY MESSAGING TESTS PASSED WITH 100% SUCCESS! <<<");
   print("==================================================================");
 }

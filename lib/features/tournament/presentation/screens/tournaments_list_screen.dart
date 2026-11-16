@@ -1848,11 +1848,6 @@ class _TournamentsListScreenState extends ConsumerState<TournamentsListScreen> {
                             ),
                           ),
                         ),
-                              padding: const EdgeInsets.symmetric(vertical: 9),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                          ),
-                        ),
                       ] else ...[
                         Expanded(
                           child: OutlinedButton(

@@ -431,29 +431,40 @@ class _FriendChatScreenState extends ConsumerState<FriendChatScreen> {
         ),
         title: Row(
           children: [
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
-                  backgroundImage: (widget.friendAvatar != null && widget.friendAvatar!.trim().startsWith('http'))
-                      ? NetworkImage(widget.friendAvatar!.trim())
-                      : const NetworkImage('https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100'),
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryGreen,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF0F1712), width: 1.5),
+            Builder(
+              builder: (_) {
+                final hasAvatar = widget.friendAvatar != null && widget.friendAvatar!.trim().startsWith('http');
+                final initial = widget.friendName.characters.isNotEmpty ? widget.friendName.characters.first.toUpperCase() : '?';
+                return Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
+                      backgroundImage: hasAvatar ? NetworkImage(widget.friendAvatar!.trim()) : null,
+                      onBackgroundImageError: hasAvatar ? (_, __) {} : null,
+                      child: !hasAvatar
+                          ? Text(
+                              initial,
+                              style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+                            )
+                          : null,
                     ),
-                  ),
-                ),
-              ],
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryGreen,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF0F1712), width: 1.5),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -547,18 +558,22 @@ class _FriendChatScreenState extends ConsumerState<FriendChatScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            CircleAvatar(
-                              radius: 36,
-                              backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.18),
-                              backgroundImage: (widget.friendAvatar != null && widget.friendAvatar!.trim().startsWith('http'))
-                                  ? NetworkImage(widget.friendAvatar!.trim())
-                                  : null,
-                              child: (widget.friendAvatar == null || !widget.friendAvatar!.trim().startsWith('http'))
-                                  ? Text(
-                                      widget.friendName.characters.isNotEmpty ? widget.friendName.characters.first.toUpperCase() : '?',
-                                      style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
-                                    )
-                                  : null,
+                            Builder(
+                              builder: (_) {
+                                final hasAvatar = widget.friendAvatar != null && widget.friendAvatar!.trim().startsWith('http');
+                                return CircleAvatar(
+                                  radius: 36,
+                                  backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.18),
+                                  backgroundImage: hasAvatar ? NetworkImage(widget.friendAvatar!.trim()) : null,
+                                  onBackgroundImageError: hasAvatar ? (_, __) {} : null,
+                                  child: !hasAvatar
+                                      ? Text(
+                                          widget.friendName.characters.isNotEmpty ? widget.friendName.characters.first.toUpperCase() : '?',
+                                          style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                                        )
+                                      : null,
+                                );
+                              },
                             ),
                             const SizedBox(height: 14),
                             Text(

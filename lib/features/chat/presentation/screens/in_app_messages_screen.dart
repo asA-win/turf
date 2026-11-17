@@ -595,7 +595,7 @@ class _InAppMessagesScreenState extends ConsumerState<InAppMessagesScreen> {
                                         ),
                                       );
                                     },
-                                  )
+                                  ))
                             : ListView(
                                 children: [
                                   if (chats.isEmpty) ...[

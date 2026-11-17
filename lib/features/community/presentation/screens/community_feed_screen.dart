@@ -1250,7 +1250,7 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                                     ),
                                   );
                                 },
-                              )
+                              ))
                         : ListView(
                             children: [
                               if (friendsList.isEmpty) ...[

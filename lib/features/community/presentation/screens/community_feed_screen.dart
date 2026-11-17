@@ -1129,9 +1129,8 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                                   ),
                                 ),
                               )
-                            : ListView.separated(
+                            : ListView.builder(
                                 itemCount: searchResults.length,
-                                separatorBuilder: (_, __) => const Divider(color: Color(0xFF16251C), height: 1),
                                 itemBuilder: (context, idx) {
                                   final user = searchResults[idx];
                                   final rawName = (user['name'] ?? '').toString().trim();
@@ -1159,58 +1158,99 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                                     'status': 'Online',
                                   };
 
-                                  return ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-                                    onTap: () => startChatWithUser(friendItem),
-                                    leading: CircleAvatar(
-                                      radius: 22,
-                                      backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
-                                      backgroundImage: hasValidAvatar ? NetworkImage(avatar) : null,
-                                      child: !hasValidAvatar
-                                          ? Text(
-                                              initial,
-                                              style: GoogleFonts.poppins(
-                                                color: AppTheme.primaryGreen,
-                                                fontWeight: FontWeight.bold,
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF16251C),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: const Color(0xFF233B2C)),
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: InkWell(
+                                        onTap: () => startChatWithUser(friendItem),
+                                        borderRadius: BorderRadius.circular(14),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                          child: Row(
+                                            children: [
+                                              CircleAvatar(
+                                                radius: 22,
+                                                backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
+                                                backgroundImage: hasValidAvatar ? NetworkImage(avatar) : null,
+                                                onBackgroundImageError: hasValidAvatar ? (_, __) {} : null,
+                                                child: !hasValidAvatar
+                                                    ? Text(
+                                                        initial,
+                                                        style: GoogleFonts.poppins(
+                                                          color: AppTheme.primaryGreen,
+                                                          fontWeight: FontWeight.bold,
+                                                          fontSize: 16,
+                                                        ),
+                                                      )
+                                                    : null,
                                               ),
-                                            )
-                                          : null,
-                                    ),
-                                    title: Text(
-                                      name,
-                                      style: GoogleFonts.poppins(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      '@$username • $role',
-                                      style: GoogleFonts.poppins(
-                                        color: AppTheme.primaryGreen,
-                                        fontSize: 11.5,
-                                      ),
-                                    ),
-                                    trailing: ElevatedButton.icon(
-                                      onPressed: () => startChatWithUser(friendItem),
-                                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14, color: Colors.black),
-                                      label: Text(
-                                        'Chat',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black,
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      name,
+                                                      style: GoogleFonts.poppins(
+                                                        color: Colors.white,
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 14,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                    const SizedBox(height: 2),
+                                                    Text(
+                                                      '@$username • $role',
+                                                      style: GoogleFonts.poppins(
+                                                        color: AppTheme.primaryGreen,
+                                                        fontSize: 11.5,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                decoration: BoxDecoration(
+                                                  color: AppTheme.primaryGreen,
+                                                  borderRadius: BorderRadius.circular(10),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    const Icon(Icons.chat_bubble_outline_rounded, size: 14, color: Colors.black),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      'Chat',
+                                                      style: GoogleFonts.poppins(
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Colors.black,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppTheme.primaryGreen,
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                       ),
                                     ),
                                   );
                                 },
-                              ))
+                              )
                         : ListView(
                             children: [
                               if (friendsList.isEmpty) ...[
@@ -1265,25 +1305,64 @@ class _CommunityFeedScreenState extends ConsumerState<CommunityFeedScreen> {
                                     'status': f['status'] ?? 'Online',
                                   };
 
-                                  return ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                                    onTap: () => startChatWithUser(friendItem),
-                                    leading: CircleAvatar(
-                                      backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
-                                      backgroundImage: fHasAvatar ? NetworkImage(fAvatar) : null,
-                                      child: !fHasAvatar
-                                          ? Text(
-                                              fInitial,
-                                              style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
-                                            )
-                                          : null,
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF16251C),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: const Color(0xFF233B2C)),
                                     ),
-                                    title: Text(fDisplay, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppTheme.textWhite)),
-                                    subtitle: Text(
-                                      '@$fUname',
-                                      style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: InkWell(
+                                        onTap: () => startChatWithUser(friendItem),
+                                        borderRadius: BorderRadius.circular(14),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                          child: Row(
+                                            children: [
+                                              CircleAvatar(
+                                                radius: 20,
+                                                backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
+                                                backgroundImage: fHasAvatar ? NetworkImage(fAvatar) : null,
+                                                onBackgroundImageError: fHasAvatar ? (_, __) {} : null,
+                                                child: !fHasAvatar
+                                                    ? Text(
+                                                        fInitial,
+                                                        style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+                                                      )
+                                                    : null,
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      fDisplay,
+                                                      style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppTheme.textWhite, fontSize: 14),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                    const SizedBox(height: 2),
+                                                    Text(
+                                                      '@$fUname',
+                                                      style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              const Icon(Icons.chat_bubble_outline_rounded, color: AppTheme.primaryGreen, size: 20),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                    trailing: const Icon(Icons.chat, color: AppTheme.primaryGreen, size: 20),
                                   );
                                 }),
                               ],

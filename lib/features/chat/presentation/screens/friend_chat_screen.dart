@@ -540,16 +540,80 @@ class _FriendChatScreenState extends ConsumerState<FriendChatScreen> {
 
             // Chat Messages List
             Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  final msg = _messages[index];
-                  final isMe = msg['isMe'] as bool;
-                  return _buildMessageBubble(msg, isMe);
-                },
-              ),
+              child: _messages.isEmpty
+                  ? Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircleAvatar(
+                              radius: 36,
+                              backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.18),
+                              backgroundImage: (widget.friendAvatar != null && widget.friendAvatar!.trim().startsWith('http'))
+                                  ? NetworkImage(widget.friendAvatar!.trim())
+                                  : null,
+                              child: (widget.friendAvatar == null || !widget.friendAvatar!.trim().startsWith('http'))
+                                  ? Text(
+                                      widget.friendName.characters.isNotEmpty ? widget.friendName.characters.first.toUpperCase() : '?',
+                                      style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              widget.friendName,
+                              style: GoogleFonts.poppins(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.friendUsername != null && widget.friendUsername!.isNotEmpty
+                                  ? '@${widget.friendUsername} • Community Player'
+                                  : 'Community Player',
+                              style: GoogleFonts.poppins(color: AppTheme.primaryGreen, fontSize: 12),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'This is the beginning of your direct conversation. Send a message or invite them to a turf game!',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(color: AppTheme.textGrey, fontSize: 12),
+                            ),
+                            const SizedBox(height: 20),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              alignment: WrapAlignment.center,
+                              children: [
+                                ActionChip(
+                                  backgroundColor: const Color(0xFF14241B),
+                                  side: BorderSide(color: AppTheme.primaryGreen.withValues(alpha: 0.4)),
+                                  avatar: const Text('👋'),
+                                  label: Text('Say Hello', style: GoogleFonts.poppins(color: Colors.white, fontSize: 12)),
+                                  onPressed: () => _sendMessage(customText: '👋 Hey ${widget.friendName}! How are you?'),
+                                ),
+                                ActionChip(
+                                  backgroundColor: const Color(0xFF14241B),
+                                  side: BorderSide(color: AppTheme.primaryGreen.withValues(alpha: 0.4)),
+                                  avatar: const Text('⚽'),
+                                  label: Text('Turf Match?', style: GoogleFonts.poppins(color: Colors.white, fontSize: 12)),
+                                  onPressed: () => _sendMessage(customText: '⚽ Ready for a turf football match this week?'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                      itemCount: _messages.length,
+                      itemBuilder: (context, index) {
+                        final msg = _messages[index];
+                        final isMe = msg['isMe'] as bool;
+                        return _buildMessageBubble(msg, isMe);
+                      },
+                    ),
             ),
 
             // WhatsApp-style bottom input bar
